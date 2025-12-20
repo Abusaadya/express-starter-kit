@@ -52,4 +52,3 @@ module.exports = async (eventBody) => {
 
   console.log("تم إرسال إيميل التنبيه بنجاح: %s", info.messageId);
 };
-
