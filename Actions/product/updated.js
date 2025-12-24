@@ -28,7 +28,57 @@
  * { key:"val" }
  * @api public
  */
-module.exports = (eventBody, userArgs) => {
-  // your logic here
-  return null;
+const NotificationService = require("../../helpers/NotificationService");
+
+module.exports = async (eventBody, userArgs) => {
+  const { merchant, data } = eventBody;
+  const { SallaDatabase } = userArgs;
+
+  if (!SallaDatabase) {
+    console.error("SallaDatabase not passed to webhook action.");
+    return;
+  }
+
+  // 1. Get user (merchant) settings from DB
+  // Merchant ID in Salla is often used to link with our local user_id or merchant field
+  const user = await SallaDatabase.retrieveUser({ email: eventBody.merchant_email || "" }, true);
+  // Wait, merchant ID is better. Let's assume we can find the user by merchant ID.
+  // Actually, let's look for a user that has an OAuth token with this merchant ID.
+
+  try {
+    const connection = await SallaDatabase.connect();
+    // Finding user by merchant ID in OauthTokens
+    const oauthToken = await connection.models.OauthTokens.findOne({
+      where: { merchant: merchant },
+      include: [connection.models.User]
+    });
+
+    if (!oauthToken || !oauthToken.User) {
+      console.warn(`No user found for merchant ${merchant}`);
+      return;
+    }
+
+    const user = oauthToken.User;
+    const product = data;
+    const quantity = product.quantity;
+    const threshold = user.stock_threshold || 5;
+
+    console.log(`Checking stock for product ${product.name}: ${quantity} vs threshold ${threshold}`);
+
+    if (quantity <= threshold) {
+      const message = `⚠️ <b>Low Stock Alert</b>\n\nProduct: <b>${product.name}</b>\nCurrent Quantity: <b>${quantity}</b>\nThreshold: <b>${threshold}</b>\n\nPlease restock soon!`;
+
+      // Send Telegram Alert
+      if (user.telegram_chat_id) {
+        await NotificationService.sendTelegramAlert(user.telegram_chat_id, message);
+      }
+
+      // Send Email Alert
+      if (user.alert_email) {
+        await NotificationService.sendEmailAlert(user.alert_email, message);
+      }
+    }
+  } catch (error) {
+    console.error("Error in product.updated action:", error);
+  }
 };

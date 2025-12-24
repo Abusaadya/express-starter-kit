@@ -1,22 +1,59 @@
 {% extends 'layout.html' %} {% block content %}
 
 <p>
-  <div> User's Data:</div>
-  <div>
-    <span>Name : <span style="font-weight:bold">{{user.name}}</span></span>
-  </div>
-  <div>
-    <span>ID : <span style="font-weight:bold">{{user.id}}</span></span>
-  </div>
-  <div>
-    <span>Email : <span style="font-weight:bold">{{user.email}}</span></span>
-  </div>
-  <div>
-    <span>Mobile : <span style="font-weight:bold">{{user.mobile}}</span></span>
-  </div>
-  <div>
-    <span>Store Name : <span style="font-weight:bold">{{user.store.name}}</span></span>
-  </div>
-
+<div> User's Data:</div>
+<div>
+  <span>Name : <span style="font-weight:bold">{{user.name}}</span></span>
+</div>
+<div>
+  <span>ID : <span style="font-weight:bold">{{user.id}}</span></span>
+</div>
+<div>
+  <span>Email : <span style="font-weight:bold">{{user.email}}</span></span>
+</div>
+<div>
+  <span>Mobile : <span style="font-weight:bold">{{user.mobile}}</span></span>
+</div>
+<div>
+  <span>Store Name : <span style="font-weight:bold">{{user.store.name}}</span></span>
+</div>
 </p>
+
+<hr>
+
+<h3>Alert Settings (Low Stock)</h3>
+{% if success %}
+<p style="color: green;">Settings updated successfully!</p>
+{% endif %}
+<form action="/account" method="POST">
+  <div>
+    <label>Stock Threshold:</label><br>
+    <input type="number" name="stock_threshold" value="{{settings.stock_threshold or 5}}" required>
+  </div>
+  <br>
+  <div>
+    <label>Telegram Alerts:</label><br>
+    {% if settings.telegram_chat_id %}
+    <span style="color: green;">✅ Linked (Chat ID: {{settings.telegram_chat_id}})</span>
+    <p style="margin-top: 5px;"><small>To relink to a different account, use the button below:</small></p>
+    {% endif %}
+
+    {% if settings.telegram_link_token %}
+    <a href="https://t.me/{{telegram_bot_username}}?start={{settings.telegram_link_token}}" target="_blank"
+      style="display: inline-block; padding: 10px 20px; background-color: #0088cc; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+      Connect with Telegram
+    </a>
+    {% else %}
+    <p style="color: #ff9800;">⚠️ Token generating... Please refresh the page.</p>
+    {% endif %}
+  </div>
+  <br>
+  <div>
+    <label>Alert Email:</label><br>
+    <input type="email" name="alert_email" value="{{settings.alert_email or user.email}}"
+      placeholder="Email for alerts">
+  </div>
+  <br>
+  <button type="submit">Save Settings</button>
+</form>
 {% endblock %}

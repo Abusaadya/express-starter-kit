@@ -50,30 +50,75 @@ const SallaAPI = new SallaAPIFactory({
 
 // set Listener on auth success
 SallaAPI.onAuth(async (accessToken, refreshToken, expires_in, data) => {
-  SallaDatabase.connect()
-    .then(async (connection) => {
-      let user_id = await SallaDatabase.saveUser({
-        username: data.name,
-        email: data.email,
-        email_verified_at: getUnixTimestamp(),
-        verified_at: getUnixTimestamp(),
-        password: "",
-        remember_token: "",
-      }); 
-      await SallaDatabase.saveOauth(
-        {
-          merchant: data.merchant.id,
-          access_token: accessToken,
-          expires_in: expires_in,
-          refresh_token: refreshToken,
-          user_id
-        },
-      );
-    })
-    .catch((err) => {
-      console.log("Error connecting to database: ", err);
+  try {
+    await SallaDatabase.connect();
+    let user_id = await SallaDatabase.saveUser({
+      username: data.name,
+      email: data.email,
+      email_verified_at: getUnixTimestamp(),
+      verified_at: getUnixTimestamp(),
+      password: "",
+      remember_token: "",
     });
+    await SallaDatabase.saveOauth(
+      {
+        merchant: data.merchant.id,
+        access_token: accessToken,
+        expires_in: expires_in,
+        refresh_token: refreshToken,
+        user_id
+      },
+    );
+  } catch (err) {
+    console.log("Error connecting to database: ", err);
+  }
 });
+
+/**
+ * Professional helper to ensure we always have a valid access token.
+ * It checks the database, validates expiry, and refreshes if necessary.
+ */
+async function getValidAccessToken(userEmail) {
+  try {
+    await SallaDatabase.connect();
+    const user = await SallaDatabase.retrieveUser({ email: userEmail }, true);
+
+    // Check if user and tokens exist (using Sequelize plural name 'OauthTokens')
+    if (!user || !user.OauthTokens || user.OauthTokens.length === 0) {
+      throw new Error("No tokens found for user in database");
+    }
+
+    const oauthData = user.OauthTokens[0];
+    const { access_token, refresh_token, expires_in, updatedAt } = oauthData;
+
+    // Calculate if the token is expired (giving 5 mins buffer)
+    const buffer = 5 * 60; // 5 minutes
+    const expiryTime = new Date(updatedAt).getTime() / 1000 + expires_in - buffer;
+    const currentTime = getUnixTimestamp();
+
+    if (currentTime < expiryTime) {
+      return access_token;
+    }
+
+    console.log("Access Token expired, requesting refresh...");
+    // Token is expired, refresh it using the Salla SDK
+    const newToken = await SallaAPI.requestNewAccessToken(refresh_token);
+
+    // Save new token back to database for future use
+    await SallaDatabase.saveOauth({
+      user_id: user.id,
+      merchant: oauthData.merchant,
+      access_token: newToken.access_token,
+      refresh_token: newToken.refresh_token,
+      expires_in: newToken.expires_in,
+    });
+
+    return newToken.access_token;
+  } catch (error) {
+    console.error("Error in getValidAccessToken:", error);
+    throw error;
+  }
+}
 
 //   Passport session setup.
 //   To support persistent login sessions, Passport needs to be able to
@@ -123,12 +168,22 @@ app.use(bodyParser.urlencoded({ extended: false }));
 // parse application/json
 app.use(bodyParser.json());
 
-app.use((req, res, next) => SallaAPI.setExpressVerify(req, res, next));
+app.use((req, res, next) => {
+  // Fix for "Cannot set property query of #<IncomingMessage> which has only a getter"
+  const query = { ...req.query };
+  Object.defineProperty(req, 'query', {
+    value: query,
+    configurable: true,
+    enumerable: true,
+    writable: true
+  });
+  return SallaAPI.setExpressVerify(req, res, next);
+});
 
 // POST /webhook
 app.post("/webhook", function (req, res) {
   SallaWebhook.checkActions(req.body, req.headers.authorization, {
-    /* your args to pass to action files or listeners */
+    SallaDatabase
   });
 });
 
@@ -156,23 +211,26 @@ app.get(
 // render the index page
 
 app.get("/", async function (req, res) {
-  let userDetails = { 
-    user: req.user, 
-    isLogin: req.user 
+  let userDetails = {
+    user: req.user,
+    isLogin: req.user
   }
-  if (req.user){
-    
+  if (req.user) {
+
     const userFromDB = await SallaDatabase.retrieveUser({ email: req.user.email }, true);
-    const accessToken = userFromDB.oauthId.access_token;
 
-    const userFromAPI = await SallaAPI.getResourceOwner(accessToken);
+    if (userFromDB && userFromDB.OauthTokens && userFromDB.OauthTokens.length > 0) {
+      try {
+        const accessToken = await getValidAccessToken(req.user.email);
+        const userFromAPI = await SallaAPI.getResourceOwner(accessToken);
 
-    // Merge user details with additional information from the API
-    userDetails = { ...userDetails, ...userFromAPI };
-     // mind you `req.user` content is almost the same as `user`,
-     // the main purpose of calling  `await SallaAPI.getResourceOwner(access_token) `
-     // is to show how to make calls with the access_toke
-    
+        // Merge user details with additional information from the API
+        userDetails = { ...userDetails, ...userFromAPI };
+      } catch (e) {
+        console.error("Error fetching user data from Salla:", e);
+      }
+    }
+
   }
   res.render("index.html", userDetails);
 });
@@ -180,11 +238,47 @@ app.get("/", async function (req, res) {
 // GET /account
 // get account information and ensure user is authenticated
 
-app.get("/account", ensureAuthenticated, function (req, res) {
+app.get("/account", ensureAuthenticated, async function (req, res) {
+  const userFromDB = await SallaDatabase.retrieveUser({ email: req.user.email }, false);
+
+  // Generate a random token for Telegram linking if it doesn't exist
+  if (userFromDB && !userFromDB.telegram_link_token) {
+    const crypto = require("crypto");
+    const token = crypto.randomBytes(16).toString("hex");
+    await userFromDB.update({ telegram_link_token: token });
+  }
+
+  // Get Bot Username automatically using the token
+  const NotificationService = require("./helpers/NotificationService");
+  const botInfo = await NotificationService.getBotInfo();
+  const botUsername = botInfo ? botInfo.username : "BotInfoError";
+  console.log(`🤖 Telegram Bot Username: ${botUsername}`);
+
   res.render("account.html", {
     user: req.user,
+    settings: userFromDB,
     isLogin: req.user,
+    success: req.query.success === '1',
+    telegram_bot_username: botUsername
   });
+});
+
+app.post("/account", ensureAuthenticated, async function (req, res) {
+  try {
+    const { stock_threshold, telegram_chat_id, alert_email } = req.body;
+    const connection = await SallaDatabase.connect();
+    await connection.models.User.update(
+      {
+        stock_threshold: parseInt(stock_threshold),
+        telegram_chat_id,
+        alert_email
+      },
+      { where: { email: req.user.email } }
+    );
+    res.redirect("/account?success=1");
+  } catch (e) {
+    res.send("Error updating settings: " + e.message);
+  }
 });
 
 // GET /refreshToken
@@ -205,27 +299,76 @@ app.get("/refreshToken", ensureAuthenticated, function (req, res) {
 // get all orders from user store
 
 app.get("/orders", ensureAuthenticated, async function (req, res) {
-  res.render("orders.html", {
-    orders: await SallaAPI.getAllOrders(),
-    isLogin: req.user,
-  });
+  try {
+    const accessToken = await getValidAccessToken(req.user.email);
+    res.render("orders.html", {
+      orders: await SallaAPI.getAllOrders(accessToken),
+      isLogin: req.user,
+    });
+  } catch (e) {
+    res.send("Error fetching orders: " + e.message);
+  }
 });
 
 // GET /customers
 // get all customers from user store
 
 app.get("/customers", ensureAuthenticated, async function (req, res) {
-  res.render("customers.html", {
-    customers: await SallaAPI.getAllCustomers(),
-    isLogin: req.user,
-  });
+  try {
+    const accessToken = await getValidAccessToken(req.user.email);
+    res.render("customers.html", {
+      customers: await SallaAPI.getAllCustomers(accessToken),
+      isLogin: req.user,
+    });
+  } catch (e) {
+    res.send("Error fetching customers: " + e.message);
+  }
+});
+
+// Telegram Webhook Handler
+app.post("/telegram/webhook", async (req, res) => {
+  const NotificationService = require("./helpers/NotificationService");
+  try {
+    const { message } = req.body;
+    console.log("📩 Incoming Telegram Webhook:", JSON.stringify(req.body));
+
+    if (!message || !message.text) return res.sendStatus(200);
+
+    const chatId = message.chat.id.toString();
+
+    if (message.text.startsWith("/start")) {
+      const parts = message.text.split(" ");
+
+      if (parts.length > 1) {
+        const linkToken = parts[1];
+        await SallaDatabase.connect();
+        const connection = await SallaDatabase.connect();
+        const user = await connection.models.User.findOne({
+          where: { telegram_link_token: linkToken }
+        });
+
+        if (user) {
+          await user.update({ telegram_chat_id: chatId });
+          await NotificationService.sendTelegramAlert(chatId, "✅ <b>تم ربط حسابك بنجاح!</b>\nمن الآن فصاعداً، ستصلك تنبيهات نقص الكمية هنا.");
+        } else {
+          await NotificationService.sendTelegramAlert(chatId, "❌ <b>عذراً، هذا الرابط غير صالح أو منتهي الصلاحية.</b>\nيرجى المحاولة مرة أخرى من صفحة الحساب.");
+        }
+      } else {
+        await NotificationService.sendTelegramAlert(chatId, "👋 <b>أهلاً بك في بوت تنبيهات سلة!</b>\n\nلربط حسابك، يرجى الضغط على زر 'Connect with Telegram' من داخل التطبيق في صفحة الحساب (Account).");
+      }
+    }
+    res.sendStatus(200);
+  } catch (error) {
+    console.error("Telegram Webhook Error:", error);
+    res.sendStatus(500);
+  }
 });
 
 // GET /logout
 //   logout from passport
 app.get("/logout", function (req, res) {
   SallaAPI.logout();
-  req.logout(function(err) {
+  req.logout(function (err) {
     if (err) { return next(err); }
     res.redirect("/");
   });

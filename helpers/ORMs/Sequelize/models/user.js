@@ -23,6 +23,16 @@ module.exports = (sequelize, DataTypes) => {
       verified_at: DataTypes.INTEGER,
       password: DataTypes.STRING,
       remember_token: DataTypes.STRING,
+      stock_threshold: {
+        type: DataTypes.INTEGER,
+        defaultValue: 5
+      },
+      telegram_chat_id: DataTypes.STRING,
+      alert_email: DataTypes.STRING,
+      telegram_link_token: {
+        type: DataTypes.STRING,
+        unique: true
+      },
     },
     {
       sequelize,

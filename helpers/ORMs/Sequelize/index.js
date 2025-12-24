@@ -6,18 +6,25 @@ const User = require("./models/user");
 
 // We export the sequelize connection instance to be used around our app.
 module.exports = {
-  connect: () => {
+  connect: async () => {
     // In a real app, you should keep the database connection URL as an environment variable.
     // But for this example, we will just use a local SQLite database.
     // const sequelize = new Sequelize(process.env.DB_CONNECTION_URL);
-    const sequelize = new Sequelize({
-      host: process.env.DATABASE_SERVER,
-      username: process.env.DATABASE_USERNAME,
-      password: process.env.DATABASE_PASSWORD,
-      database: process.env.DATABASE_NAME,
-      dialect: "mysql",
-      logging: true,
-    });
+    const isSqlite = process.env.DATABASE_STORAGE ? true : false;
+    const sequelize = isSqlite
+      ? new Sequelize({
+        dialect: "sqlite",
+        storage: process.env.DATABASE_STORAGE,
+        logging: true,
+      })
+      : new Sequelize({
+        host: process.env.DATABASE_SERVER,
+        username: process.env.DATABASE_USERNAME,
+        password: process.env.DATABASE_PASSWORD,
+        database: process.env.DATABASE_NAME,
+        dialect: "mysql",
+        logging: true,
+      });
 
     const modelDefiners = [
       OauthTokens,
@@ -35,12 +42,11 @@ module.exports = {
 
     // We execute any associates  after the models are defined .
 
-    sequelize
-      .sync()
-      .then((data) => {})
-      .catch((err) => {
-        console.log("Error in creating and connecting database", err);
-      });
+    try {
+      await sequelize.sync({ alter: true });
+    } catch (err) {
+      console.log("Error in creating and connecting database", err);
+    }
     return sequelize;
   },
 };
