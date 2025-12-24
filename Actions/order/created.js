@@ -28,7 +28,27 @@
  * { key:"val" }
  * @api public
  */
-module.exports = (eventBody, userArgs) => {
-  // your logic here
-  return null;
+
+
+const nodemailer = require('nodemailer');
+
+module.exports = async (eventBody) => {
+  const { id, customer, total } = eventBody.data;
+
+  // إعداد "الناقل" (ببيانات SMTP الخاصة بك)
+  let transporter = nodemailer.createTransport({
+    host: "smtp.example.com",
+    port: 587,
+    auth: { user: "your-email@example.com", pass: "your-password" }
+  });
+
+  // محتوى الإيميل
+  let info = await transporter.sendMail({
+    from: '"متجري البرمجي" <your-email@example.com>',
+    to: "admin@example.com",
+    subject: `طلب جديد رقم #${id}`,
+    text: `أهلاً، لقد قام العميل ${customer.first_name} بطلب جديد بقيمة ${total.amount} ريال.`
+  });
+
+  console.log("تم إرسال إيميل التنبيه بنجاح: %s", info.messageId);
 };

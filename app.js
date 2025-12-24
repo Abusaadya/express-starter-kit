@@ -6,7 +6,7 @@ const passport = require("passport");
 const consolidate = require("consolidate");
 const getUnixTimestamp = require("./helpers/getUnixTimestamp");
 const bodyParser = require("body-parser");
-const port = process.argv[2] || 8082;
+const port = process.env.PORT || 8081;
 
 /*
   Create a .env file in the root directory of your project. 
@@ -216,7 +216,6 @@ app.get("/", async function (req, res) {
     isLogin: req.user
   }
   if (req.user) {
-
     const userFromDB = await SallaDatabase.retrieveUser({ email: req.user.email }, true);
 
     if (userFromDB && userFromDB.OauthTokens && userFromDB.OauthTokens.length > 0) {
@@ -230,7 +229,6 @@ app.get("/", async function (req, res) {
         console.error("Error fetching user data from Salla:", e);
       }
     }
-
   }
   res.render("index.html", userDetails);
 });
