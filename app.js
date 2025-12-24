@@ -328,7 +328,7 @@ app.get("/customers", ensureAuthenticated, async function (req, res) {
 });
 
 // Telegram Webhook Handler
-app.post("/telegram/webhook", async (req, res) => {
+app.post(["/telegram/webhook", "/telegram/webhook/"], async (req, res) => {
   const NotificationService = require("./helpers/NotificationService");
   try {
     const { message } = req.body;
