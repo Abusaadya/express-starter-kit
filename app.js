@@ -181,7 +181,11 @@ app.use((req, res, next) => {
 });
 
 // POST /webhook
-app.post("/webhook", function (req, res) {
+app.post(["/webhook", "/webhook/"], function (req, res) {
+  // Salla expects a 200 response immediately to avoid timeout
+  res.sendStatus(200);
+
+  // Process actions in background
   SallaWebhook.checkActions(req.body, req.headers.authorization, {
     SallaDatabase
   });
