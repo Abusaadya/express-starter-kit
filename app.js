@@ -152,350 +152,271 @@ passport.deserializeUser(async function (id, done) {
 passport.use(SallaAPI.getPassportStrategy());
 // save token and user data to your selected database
 
-var app = express();
-
-// Trust proxy for Railway (allows secure cookies and IP detection)
-app.set('trust proxy', 1);
-
-// Configure Express
-app.set("views", __dirname + "/views");
-app.set("view engine", "html");
-
-// Persistent Session Storage
-const SequelizeStore = require("connect-session-sequelize")(session.Store);
-const sessionStore = new SequelizeStore({
-  db: SallaDatabase.connection, // This will be populated after the first connect()
-  checkExpirationInterval: 15 * 60 * 1000, // The interval at which to cleanup expired sessions in milliseconds.
-  expiration: 24 * 60 * 60 * 1000  // The maximum age (in milliseconds) of a valid session.
-});
-
-app.use(
-  session({
-    secret: "salla dash secret",
-    store: sessionStore,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    }
-  })
-);
-
-// Ensure session store table exists
-SallaDatabase.connect().then(connection => {
-  if (connection && SallaDatabase.DATABASE_ORM === "Sequelize") {
-    sessionStore.db = connection;
-    sessionStore.sync();
-  }
-});
-
-app.use(passport.initialize());
-app.use(passport.session());
-
-// serve static files from public folder
-app.use(express.static(__dirname + "/public"));
-
-// set the render engine to nunjucks
-
-app.engine("html", consolidate.nunjucks);
-app.use(bodyParser.urlencoded({ extended: false }));
-
-// parse application/json
-app.use(bodyParser.json());
-
-app.use((req, res, next) => {
-  // Fix for "Cannot set property query of #<IncomingMessage> which has only a getter"
-  const query = { ...req.query };
-  Object.defineProperty(req, 'query', {
-    value: query,
-    configurable: true,
-    enumerable: true,
-    writable: true
-  });
-  return SallaAPI.setExpressVerify(req, res, next);
-});
-
-// POST /webhook
-app.post(["/webhook", "/webhook/"], function (req, res) {
-  // Salla expects a 200 response immediately to avoid timeout
-  res.sendStatus(200);
-
-  // Process actions in background
-  SallaWebhook.checkActions(req.body, req.headers.authorization, {
-    SallaDatabase
-  });
-});
-
-// GET /oauth/redirect
-//   Use passport.authenticate() as route middleware to authenticate the
-//   request. The first step in salla authentication will involve redirecting
-//   the user to accounts.salla.sa. After authorization, salla will redirect the user
-//   back to this application at /oauth/callback
-app.get(["/oauth/redirect", "/login"], passport.authenticate("salla"));
-
-// GET /oauth/callback
-//   Use passport.authenticate() as route middleware to authenticate the
-//   request. If authentication fails, the user will be redirected back to the
-//   login page. Otherwise, the primary route function function will be called,
-//   which, in this example, will redirect the user to the home page.
-app.get(
-  "/oauth/callback",
-  passport.authenticate("salla", { failureRedirect: "/login" }),
-  function (req, res) {
-    res.redirect("/");
-  }
-);
-
-// GET /
-// render the index page
-
-app.get("/", async function (req, res) {
-  let userDetails = {
-    user: req.user,
-    isLogin: req.user,
-    stores: [],
-    name: req.user ? req.user.username : 'Guest',
-    merchant: { name: 'No Store Connected', email: req.user ? req.user.email : '', id: 'N/A' },
-    selected_merchant: null
-  }
-
-  if (req.user) {
-    try {
-      await SallaDatabase.connect();
-      const connection = await SallaDatabase.connect();
-      const stores = await connection.models.OauthTokens.findAll({
-        where: { user_id: req.user.id }
-      });
-      userDetails.stores = stores;
-
-      if (stores.length > 0) {
-        const merchantId = req.query.merchant_id || stores[0].merchant;
-        const accessToken = await getValidAccessToken(req.user.email, merchantId);
-        const userFromAPI = await SallaAPI.getResourceOwner(accessToken);
-        const resourceData = typeof userFromAPI.toArray === 'function' ? userFromAPI.toArray() : userFromAPI;
-
-        userDetails.name = resourceData.name || userDetails.name;
-        userDetails.merchant = resourceData.merchant || resourceData.store || userDetails.merchant;
-        userDetails.selected_merchant = merchantId;
-      }
-    } catch (e) {
-      console.error("Error in root route:", e);
-    }
-  }
-
-  res.render("index.html", userDetails);
-});
-
-// GET /account
-// get account information and ensure user is authenticated
-
-app.get("/account", ensureAuthenticated, async function (req, res) {
-  const connection = await SallaDatabase.connect();
-  const stores = await connection.models.OauthTokens.findAll({
-    where: { user_id: req.user.id },
-    include: [connection.models.StoreTelegram]
-  });
-
-  // Ensure each store has a telegram_link_token
-  const crypto = require("crypto");
-  for (const store of stores) {
-    if (!store.telegram_link_token) {
-      const token = crypto.randomBytes(16).toString("hex");
-      await store.update({ telegram_link_token: token });
-    }
-  }
-
-  // Get Bot Username automatically using the token
-  const NotificationService = require("./helpers/NotificationService");
-  const botInfo = await NotificationService.getBotInfo();
-  const botUsername = botInfo ? botInfo.username : "BotInfoError";
-
-  res.render("account.html", {
-    user: req.user,
-    stores: stores,
-    isLogin: req.user,
-    success: req.query.success === '1',
-    telegram_bot_username: botUsername
-  });
-});
-
-app.post("/account/telegram/remove", ensureAuthenticated, async function (req, res) {
-  const { oauth_token_id, chat_id } = req.body;
-  await SallaDatabase.removeTelegramFromStore(oauth_token_id, chat_id);
-  res.redirect("/account?success=1");
-});
-
-app.post("/account", ensureAuthenticated, async function (req, res) {
-  try {
-    const { stock_threshold, telegram_chat_id, alert_email } = req.body;
-    const connection = await SallaDatabase.connect();
-    await connection.models.User.update(
-      {
-        stock_threshold: parseInt(stock_threshold),
-        telegram_chat_id,
-        alert_email
-      },
-      { where: { email: req.user.email } }
-    );
-    res.redirect("/account?success=1");
-  } catch (e) {
-    res.send("Error updating settings: " + e.message);
-  }
-});
-
-// GET /refreshToken
-// get new access token
-
-app.get("/refreshToken", ensureAuthenticated, function (req, res) {
-  SallaAPI.requestNewAccessToken(SallaAPI.getRefreshToken())
-    .then((token) => {
-      res.render("token.html", {
-        token,
-        isLogin: req.user,
-      });
-    })
-    .catch((err) => res.send(err));
-});
-
-// GET /orders
-// get all orders from user store
-
-app.get("/orders", ensureAuthenticated, async function (req, res) {
-  try {
-    const connection = await SallaDatabase.connect();
-    const stores = await connection.models.OauthTokens.findAll({ where: { user_id: req.user.id } });
-    if (stores.length === 0) {
-      return res.render("orders.html", {
-        orders: [],
-        isLogin: req.user,
-        stores: [],
-        error: "No stores found. Please re-install the app or login again to sync your data."
-      });
-    }
-
-    const merchantId = req.query.merchant_id || stores[0].merchant;
-    const accessToken = await getValidAccessToken(req.user.email, merchantId);
-    res.render("orders.html", {
-      orders: await SallaAPI.getAllOrders(accessToken),
-      isLogin: req.user,
-      stores: stores,
-      selected_merchant: merchantId
-    });
-  } catch (e) {
-    console.error("Orders Error:", e);
-    res.send("Error fetching orders: " + e.message + ". Try logging out and in again.");
-  }
-});
-
-// GET /customers
-// get all customers from user store
-
-app.get("/customers", ensureAuthenticated, async function (req, res) {
-  try {
-    const connection = await SallaDatabase.connect();
-    const stores = await connection.models.OauthTokens.findAll({ where: { user_id: req.user.id } });
-    if (stores.length === 0) {
-      return res.render("customers.html", {
-        customers: [],
-        isLogin: req.user,
-        stores: [],
-        error: "No stores found. Please re-install the app or login again to sync your data."
-      });
-    }
-
-    const merchantId = req.query.merchant_id || stores[0].merchant;
-    const accessToken = await getValidAccessToken(req.user.email, merchantId);
-    res.render("customers.html", {
-      customers: await SallaAPI.getAllCustomers(accessToken),
-      isLogin: req.user,
-      stores: stores,
-      selected_merchant: merchantId
-    });
-  } catch (e) {
-    console.error("Customers Error:", e);
-    res.send("Error fetching customers: " + e.message + ". Try logging out and in again.");
-  }
-});
-
-// Telegram Webhook Handler
-app.post(["/telegram/webhook", "/telegram/webhook/"], async (req, res) => {
-  const NotificationService = require("./helpers/NotificationService");
-  try {
-    const { message } = req.body;
-    console.log("📩 Incoming Telegram Webhook:", JSON.stringify(req.body));
-
-    if (!message || !message.text) return res.sendStatus(200);
-
-    const chatId = message.chat.id.toString();
-
-    if (message.text.startsWith("/start")) {
-      const parts = message.text.split(" ");
-
-      if (parts.length > 1) {
-        const linkToken = parts[1];
-        await SallaDatabase.connect();
-        const connection = await SallaDatabase.connect();
-
-        // Find store by its linking token
-        const store = await connection.models.OauthTokens.findOne({
-          where: { telegram_link_token: linkToken }
-        });
-
-        if (store) {
-          // Add this recipient to the store
-          await SallaDatabase.addTelegramToStore(store.id, chatId, message.from.first_name || "Recipient");
-          await NotificationService.sendTelegramAlert(chatId, `✅ <b>تم ربط حسابك بمتجر [${store.store_name}] بنجاح!</b>\nمن الآن فصاعداً، ستصلك تنبيهات هذا المتجر هنا.`);
-        } else {
-          await NotificationService.sendTelegramAlert(chatId, "❌ <b>عذراً، هذا الرابط غير صالح أو منتهي الصلاحية.</b>\nيرجى المحاولة مرة أخرى من صفحة الحساب.");
-        }
-      } else {
-        await NotificationService.sendTelegramAlert(chatId, "👋 <b>أهلاً بك في بوت تنبيهات سلة!</b>\n\nلربط حسابك بمتجرك، يرجى الضغط على زر 'Connect with Telegram' الخاص بالمتجر من داخل التطبيق.");
-      }
-    }
-    res.sendStatus(200);
-  } catch (error) {
-    console.error("Telegram Webhook Error:", error);
-    res.sendStatus(500);
-  }
-});
-
-// GET /logout
-//   logout from passport
-app.get("/logout", function (req, res) {
-  SallaAPI.logout();
-  req.logout(function (err) {
-    if (err) { return next(err); }
-    res.redirect("/");
-  });
-});
+const SequelizeStoreModule = require("connect-session-sequelize")(session.Store);
 
 // Initialize Database and Start Server
 async function startServer() {
   try {
     console.log("🚀 Initializing system...");
-    await SallaDatabase.connect();
+    const connection = await SallaDatabase.connect();
+
+    const app = express();
+
+    // Trust proxy for Railway (allows secure cookies and IP detection)
+    app.set('trust proxy', 1);
+
+    // Configure Express
+    app.set("views", __dirname + "/views");
+    app.set("view engine", "html");
+
+    // Persistent Session Storage
+    const sessionStore = new SequelizeStoreModule({
+      db: connection,
+      checkExpirationInterval: 15 * 60 * 1000,
+      expiration: 24 * 60 * 60 * 1000
+    });
+
+    if (SallaDatabase.DATABASE_ORM === "Sequelize") {
+      await sessionStore.sync();
+    }
+
+    app.use(
+      session({
+        secret: "salla dash secret",
+        store: sessionStore,
+        resave: false,
+        saveUninitialized: false,
+        cookie: {
+          secure: process.env.NODE_ENV === "production",
+          maxAge: 24 * 60 * 60 * 1000
+        }
+      })
+    );
+
+    app.use(passport.initialize());
+    app.use(passport.session());
+
+    // serve static files from public folder
+    app.use(express.static(__dirname + "/public"));
+
+    // set the render engine to nunjucks
+    app.engine("html", consolidate.nunjucks);
+    app.use(bodyParser.urlencoded({ extended: false }));
+
+    // parse application/json
+    app.use(bodyParser.json());
+
+    app.use((req, res, next) => {
+      // Fix for "Cannot set property query of #<IncomingMessage> which has only a getter"
+      const query = { ...req.query };
+      Object.defineProperty(req, 'query', {
+        value: query,
+        configurable: true,
+        enumerable: true,
+        writable: true
+      });
+      return SallaAPI.setExpressVerify(req, res, next);
+    });
+
+    // --- Routes ---
+
+    // POST /webhook
+    app.post(["/webhook", "/webhook/"], function (req, res) {
+      res.sendStatus(200);
+      SallaWebhook.checkActions(req.body, req.headers.authorization, { SallaDatabase });
+    });
+
+    // OAuth Routes
+    app.get(["/oauth/redirect", "/login"], passport.authenticate("salla"));
+    app.get(
+      "/oauth/callback",
+      passport.authenticate("salla", { failureRedirect: "/login" }),
+      function (req, res) {
+        res.redirect("/");
+      }
+    );
+
+    // GET /
+    app.get("/", async function (req, res) {
+      let userDetails = {
+        user: req.user,
+        isLogin: req.user,
+        stores: [],
+        name: req.user ? req.user.username : 'Guest',
+        merchant: { name: 'No Store Connected', email: req.user ? req.user.email : '', id: 'N/A' },
+        selected_merchant: null
+      }
+
+      if (req.user) {
+        try {
+          const connection = await SallaDatabase.connect();
+          const stores = await connection.models.OauthTokens.findAll({
+            where: { user_id: req.user.id }
+          });
+          userDetails.stores = stores;
+
+          if (stores.length > 0) {
+            const merchantId = req.query.merchant_id || stores[0].merchant;
+            const accessToken = await getValidAccessToken(req.user.email, merchantId);
+            const userFromAPI = await SallaAPI.getResourceOwner(accessToken);
+            const resourceData = typeof userFromAPI.toArray === 'function' ? userFromAPI.toArray() : userFromAPI;
+
+            userDetails.name = resourceData.name || userDetails.name;
+            userDetails.merchant = resourceData.merchant || resourceData.store || userDetails.merchant;
+            userDetails.selected_merchant = merchantId;
+          }
+        } catch (e) {
+          console.error("Error in root route:", e);
+        }
+      }
+      res.render("index.html", userDetails);
+    });
+
+    // GET /account
+    app.get("/account", ensureAuthenticated, async function (req, res) {
+      const connection = await SallaDatabase.connect();
+      const stores = await connection.models.OauthTokens.findAll({
+        where: { user_id: req.user.id },
+        include: [connection.models.StoreTelegram]
+      });
+
+      const crypto = require("crypto");
+      for (const store of stores) {
+        if (!store.telegram_link_token) {
+          const token = crypto.randomBytes(16).toString("hex");
+          await store.update({ telegram_link_token: token });
+        }
+      }
+
+      const NotificationService = require("./helpers/NotificationService");
+      const botInfo = await NotificationService.getBotInfo();
+      const botUsername = botInfo ? botInfo.username : "BotInfoError";
+
+      res.render("account.html", {
+        user: req.user,
+        stores: stores,
+        isLogin: req.user,
+        success: req.query.success === '1',
+        telegram_bot_username: botUsername
+      });
+    });
+
+    app.post("/account/telegram/remove", ensureAuthenticated, async function (req, res) {
+      const { oauth_token_id, chat_id } = req.body;
+      await SallaDatabase.removeTelegramFromStore(oauth_token_id, chat_id);
+      res.redirect("/account?success=1");
+    });
+
+    app.post("/account", ensureAuthenticated, async function (req, res) {
+      try {
+        const { stock_threshold, telegram_chat_id, alert_email } = req.body;
+        const connection = await SallaDatabase.connect();
+        await connection.models.User.update(
+          {
+            stock_threshold: parseInt(stock_threshold),
+            telegram_chat_id,
+            alert_email
+          },
+          { where: { email: req.user.email } }
+        );
+        res.redirect("/account?success=1");
+      } catch (e) {
+        res.send("Error updating settings: " + e.message);
+      }
+    });
+
+    app.get("/refreshToken", ensureAuthenticated, function (req, res) {
+      SallaAPI.requestNewAccessToken(SallaAPI.getRefreshToken())
+        .then((token) => {
+          res.render("token.html", { token, isLogin: req.user });
+        })
+        .catch((err) => res.send(err));
+    });
+
+    app.get("/orders", ensureAuthenticated, async function (req, res) {
+      try {
+        const connection = await SallaDatabase.connect();
+        const stores = await connection.models.OauthTokens.findAll({ where: { user_id: req.user.id } });
+        if (stores.length === 0) {
+          return res.render("orders.html", {
+            orders: [], isLogin: req.user, stores: [],
+            error: "No stores found. Please re-install the app or login again to sync your data."
+          });
+        }
+        const merchantId = req.query.merchant_id || stores[0].merchant;
+        const accessToken = await getValidAccessToken(req.user.email, merchantId);
+        res.render("orders.html", {
+          orders: await SallaAPI.getAllOrders(accessToken),
+          isLogin: req.user, stores: stores, selected_merchant: merchantId
+        });
+      } catch (e) {
+        res.send("Error fetching orders: " + e.message);
+      }
+    });
+
+    app.get("/customers", ensureAuthenticated, async function (req, res) {
+      try {
+        const connection = await SallaDatabase.connect();
+        const stores = await connection.models.OauthTokens.findAll({ where: { user_id: req.user.id } });
+        if (stores.length === 0) {
+          return res.render("customers.html", {
+            customers: [], isLogin: req.user, stores: [],
+            error: "No stores found. Please re-install the app or login again to sync your data."
+          });
+        }
+        const merchantId = req.query.merchant_id || stores[0].merchant;
+        const accessToken = await getValidAccessToken(req.user.email, merchantId);
+        res.render("customers.html", {
+          customers: await SallaAPI.getAllCustomers(accessToken),
+          isLogin: req.user, stores: stores, selected_merchant: merchantId
+        });
+      } catch (e) {
+        res.send("Error fetching customers: " + e.message);
+      }
+    });
+
+    app.post(["/telegram/webhook", "/telegram/webhook/"], async (req, res) => {
+      const NotificationService = require("./helpers/NotificationService");
+      try {
+        const { message } = req.body;
+        if (!message || !message.text) return res.sendStatus(200);
+        const chatId = message.chat.id.toString();
+        if (message.text.startsWith("/start")) {
+          const parts = message.text.split(" ");
+          if (parts.length > 1) {
+            const linkToken = parts[1];
+            const connection = await SallaDatabase.connect();
+            const store = await connection.models.OauthTokens.findOne({ where: { telegram_link_token: linkToken } });
+            if (store) {
+              await SallaDatabase.addTelegramToStore(store.id, chatId, message.from.first_name || "Recipient");
+              await NotificationService.sendTelegramAlert(chatId, `✅ <b>تم ربط حسابك بمتجر [${store.store_name}] بنجاح!</b>`);
+            }
+          }
+        }
+        res.sendStatus(200);
+      } catch (error) {
+        res.sendStatus(500);
+      }
+    });
+
+    app.get("/logout", function (req, res) {
+      SallaAPI.logout();
+      req.logout((err) => { res.redirect("/"); });
+    });
 
     app.listen(port, () => {
       console.log(`🚀 Server is running on ${port}`);
     });
   } catch (error) {
-    console.error("❌ Failed to start server due to database connection error:", error);
+    console.error("❌ Failed to start server:", error);
     process.exit(1);
   }
 }
 
-startServer();
-
-
-// Simple route middleware to ensure user is authenticated.
-//   Use this route middleware on any resource that needs to be protected.  If
-//   the request is authenticated (typically via a persistent login session),
-//   the request will proceed. Otherwise, the user will be redirected to the
-//   login page.
+// Helper: SecureAuthenticated
 function ensureAuthenticated(req, res, next) {
-  if (req.isAuthenticated()) {
-    return next();
-  }
+  if (req.isAuthenticated()) return next();
   res.redirect("/login");
 }
+
+startServer();
