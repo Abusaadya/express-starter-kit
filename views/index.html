@@ -1,14 +1,43 @@
 {% extends 'layout.html' %}
-{% block content %} {% if not isLogin %}
+{% block content %}
+{% if not isLogin %}
+<div style="text-align: center; padding: 40px;">
+  <h2>Please Login to your Salla account</h2>
+  <a href="/login"
+    style="display: inline-block; background: #69d5c4; color: #fff; padding: 10px 20px; border-radius: 5px; text-decoration: none; font-weight: bold;">Login
+    with Salla</a>
+</div>
+{% else %}
+
+{# Case: No stores found in the database #}
+{% if stores.length == 0 %}
+<div style="text-align: center; padding: 40px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+  <h2 style="color: #69d5c4;">👋 Welcome to Your New Production Dashboard!</h2>
+  <p style="font-size: 18px; margin-bottom: 25px;">It looks like we need to sync your Salla stores with the new
+    database.</p>
+  <div
+    style="background: rgba(255,193,7,0.1); border-left: 5px solid #ffc107; padding: 15px; text-align: left; margin-bottom: 25px; display: inline-block;">
+    <strong>Note:</strong> We recently migrated to MySQL. To see your stores and orders, please re-authenticate once to
+    sync your data.
+  </div>
+  <br>
+  <a href="/login"
+    style="display: inline-block; background: #69d5c4; color: #fff; padding: 15px 30px; border-radius: 30px; font-weight: bold; text-decoration: none; font-size: 18px; box-shadow: 0 4px 15px rgba(105, 213, 196, 0.3);">
+    🚀 Sync My Stores Now
+  </a>
+</div>
 
 {% else %}
+
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-  <h2> Welcome , <span style="font-weight: bold">{{ name }}</span>.</h2>
+  <h2 style="margin: 0;"> Welcome , <span style="font-weight: bold">{{ name }}</span>.</h2>
 
   {% if stores.length > 1 %}
-  <div style="background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #ddd; color: #333;">
-    <label style="font-weight: bold; margin-right: 10px;">Switch Store:</label>
-    <select onchange="window.location.href='/?merchant_id=' + this.value" style="padding: 5px; border-radius: 4px;">
+  <div
+    style="background: #fff; padding: 8px 15px; border-radius: 8px; border: 1px solid #ddd; color: #333; display: flex; align-items: center; gap: 10px;">
+    <label style="font-weight: bold; font-size: 14px;">Switch Store:</label>
+    <select onchange="window.location.href='/?merchant_id=' + this.value"
+      style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; cursor: pointer;">
       {% for store in stores %}
       <option value="{{store.merchant}}" {% if store.merchant==selected_merchant %}selected{% endif %}>
         {{store.store_name}}
@@ -20,26 +49,34 @@
 </div>
 
 <div
-  style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 8px; display: flex; align-items: center; gap: 20px;">
+  style="background: rgba(255,255,255,0.1); padding: 25px; border-radius: 12px; display: flex; align-items: center; gap: 20px; border: 1px solid rgba(255,255,255,0.1);">
   <img src="{{merchant.avatar or 'https://salla.sa/favicon.ico'}}" width="80" height="80"
-    style="border-radius: 50%; border: 2px solid #fff;" />
+    style="border-radius: 50%; border: 3px solid #69d5c4; background: #fff;" />
   <div>
-    <h3 style="margin: 0;">{{ merchant.name }}</h3>
-    <p style="margin: 5px 0 0 0; opacity: 0.8;">Email: <b>{{ merchant.email }}</b></p>
-    <p style="margin: 5px 0 0 0; opacity: 0.8;">Merchant ID: <b>{{ merchant.id }}</b></p>
+    <h3 style="margin: 0; font-size: 22px;">{{ merchant.name }}</h3>
+    <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Email: <b>{{ merchant.email }}</b></p>
+    <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Merchant ID: <b>{{ merchant.id }}</b></p>
   </div>
 </div>
 
 <div style="margin-top: 30px;">
-  <h4>Store Details (Raw API Data):</h4>
-  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px; opacity: 0.9;">
+  <h4 style="border-bottom: 2px solid rgba(105, 213, 196, 0.3); padding-bottom: 10px; margin-bottom: 20px;">Store
+    Details (Raw API Data):</h4>
+  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; font-size: 14px;">
     {% for key, value in merchant %}
-    {% if key != 'avatar' %}
-    <div style="background: rgba(0,0,0,0.2); padding: 5px 10px; border-radius: 4px;">
-      <span style="color: #69d5c4; font-weight: bold;">{{ key }}:</span> {{ value }}
+    {% if key != 'avatar' and key != 'name' and key != 'email' and key != 'id' %}
+    <div
+      style="background: rgba(0,0,0,0.2); padding: 10px 15px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+      <span
+        style="color: #69d5c4; font-weight: bold; display: block; margin-bottom: 2px; text-transform: uppercase; font-size: 10px; letter-spacing: 1px;">{{
+        key }}</span>
+      <span style="word-break: break-all;">{{ value }}</span>
     </div>
     {% endif %}
     {% endfor %}
   </div>
 </div>
-{% endif %} {% endblock %}
+
+{% endif %}
+{% endif %}
+{% endblock %}

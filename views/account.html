@@ -1,13 +1,29 @@
-{% extends 'layout.html' %} {% block content %}
+{% extends 'layout.html' %}
+{% block content %}
 
 <h3>Store Management & Telegram Alerts</h3>
 
 {% if success %}
-<div style="background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 20px;">
+<div
+  style="background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #c3e6cb;">
   ✅ Settings updated successfully!
 </div>
 {% endif %}
 
+{% if stores.length == 0 %}
+<div
+  style="background: rgba(255,255,255,0.05); border: 2px dashed rgba(255,255,255,0.2); border-radius: 8px; padding: 40px; text-align: center;">
+  <div style="font-size: 40px; margin-bottom: 20px;">🔌</div>
+  <h4 style="margin-bottom: 10px;">No Stores Found in the New Database</h4>
+  <p style="color: #ccc; margin-bottom: 25px;">Since the database was recently migrated to MySQL, you need to sync your
+    store connections once more.</p>
+  <a href="/login"
+    style="display: inline-block; background-color: #69d5c4; color: white; padding: 12px 25px; border-radius: 30px; text-decoration: none; font-weight: bold;">
+    🔄 Sync My Stores Now
+  </a>
+</div>
+
+{% else %}
 <div style="display: grid; gap: 20px;">
   {% for store in stores %}
   <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; color: #333;">
@@ -20,7 +36,8 @@
           <small style="color: #666;">Merchant ID: {{store.merchant}}</small>
         </div>
       </div>
-      <div style="background: #e9ecef; padding: 5px 12px; border-radius: 15px; font-size: 12px; font-weight: bold;">
+      <div
+        style="background: #69d5c4; color: #fff; padding: 5px 12px; border-radius: 15px; font-size: 11px; font-weight: bold;">
         Connected
       </div>
     </div>
@@ -28,60 +45,61 @@
     <hr style="border: 0; border-top: 1px solid #ddd; margin: 15px 0;">
 
     <div style="margin-bottom: 20px;">
-      <h5 style="margin-bottom: 10px;">Linked Telegram Recipients:</h5>
+      <h5 style="margin-bottom: 10px; color: #555;">Linked Telegram Recipients:</h5>
       {% if store.StoreTelegrams and store.StoreTelegrams.length > 0 %}
       <div style="display: flex; flex-wrap: wrap; gap: 10px;">
         {% for tg in store.StoreTelegrams %}
         <div
-          style="background: #fff; border: 1px solid #0088cc; padding: 8px 12px; border-radius: 20px; display: flex; align-items: center; gap: 10px;">
-          <span style="color: #0088cc; font-weight: bold;">👤 {{tg.label}}</span>
+          style="background: #fff; border: 1px solid #0088cc; padding: 8px 12px; border-radius: 20px; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+          <span style="color: #0088cc; font-weight: bold; font-size: 13px;">👤 {{tg.label}}</span>
           <form action="/account/telegram/remove" method="POST" style="display: inline; margin: 0;">
             <input type="hidden" name="oauth_token_id" value="{{store.id}}">
             <input type="hidden" name="chat_id" value="{{tg.chat_id}}">
             <button type="submit"
-              style="background: none; border: none; color: #dc3545; cursor: pointer; padding: 0; font-weight: bold;"
+              style="background: none; border: none; color: #dc3545; cursor: pointer; padding: 0; font-weight: bold; font-size: 16px;"
               title="Remove">✕</button>
           </form>
         </div>
         {% endfor %}
       </div>
       {% else %}
-      <p style="color: #666; font-style: italic;">No Telegram accounts linked to this store yet.</p>
+      <p style="color: #999; font-style: italic; font-size: 13px;">No Telegram accounts linked to this store yet.</p>
       {% endif %}
     </div>
 
     <div>
       <a href="https://t.me/{{telegram_bot_username}}?start={{store.telegram_link_token}}" target="_blank"
-        style="display: inline-block; padding: 10px 20px; background-color: #0088cc; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 14px;">
+        style="display: inline-block; padding: 10px 20px; background-color: #0088cc; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 10px rgba(0, 136, 204, 0.2);">
         ➕ Link New Telegram Account
       </a>
-      <p style="margin-top: 8px; font-size: 12px; color: #666;">
-        Click this button or send the link to whoever should receive alerts for <b>{{store.store_name}}</b>.
+      <p style="margin-top: 8px; font-size: 12px; color: #888;">
+        Click this button to link your Telegram account for <b>{{store.store_name}}</b>.
       </p>
     </div>
   </div>
   {% endfor %}
 </div>
+{% endif %}
 
-<hr style="margin: 30px 0;">
+<hr style="margin: 40px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.1);">
 
-<h3>General Settings</h3>
-<form action="/account" method="POST">
-  <div style="color: #333;">
-    <label style="font-weight: bold;">Global Stock Threshold:</label><br>
+<h3 style="margin-bottom: 20px;">General Settings</h3>
+<form action="/account" method="POST" style="background: rgba(255,255,255,0.05); padding: 25px; border-radius: 8px;">
+  <div style="margin-bottom: 20px;">
+    <label style="font-weight: bold; display: block; margin-bottom: 10px;">Global Stock Threshold:</label>
     <input type="number" name="stock_threshold" value="{{settings.stock_threshold or 5}}" required
-      style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100px; margin-top: 5px;">
-    <p style="font-size: 12px; color: #666;">Alert me when product quantity falls below this value.</p>
+      style="padding: 10px; border: 1px solid #ddd; border-radius: 4px; width: 120px; outline: none;">
+    <p style="font-size: 12px; color: #aaa; margin-top: 5px;">Alert me when product quantity falls below this value.</p>
   </div>
-  <br>
-  <div style="color: #333;">
-    <label style="font-weight: bold;">Global Alert Email:</label><br>
+
+  <div style="margin-bottom: 25px;">
+    <label style="font-weight: bold; display: block; margin-bottom: 10px;">Global Alert Email:</label>
     <input type="email" name="alert_email" value="{{settings.alert_email or user.email}}" placeholder="Email for alerts"
-      style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 300px; margin-top: 5px;">
+      style="padding: 10px; border: 1px solid #ddd; border-radius: 4px; width: 100%; max-width: 400px; outline: none;">
   </div>
-  <br>
+
   <button type="submit"
-    style="padding: 10px 25px; background-color: #69d5c4; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+    style="padding: 12px 35px; background-color: #69d5c4; color: white; border: none; border-radius: 30px; cursor: pointer; font-weight: bold; font-size: 16px; box-shadow: 0 4px 15px rgba(105, 213, 196, 0.3);">
     Save Settings
   </button>
 </form>

@@ -227,35 +227,36 @@ app.get("/", async function (req, res) {
   let userDetails = {
     user: req.user,
     isLogin: req.user,
-    stores: []
+    stores: [],
+    name: req.user ? req.user.username : 'Guest',
+    merchant: { name: 'No Store Connected', email: req.user ? req.user.email : '', id: 'N/A' },
+    selected_merchant: null
   }
-  if (req.user) {
-    await SallaDatabase.connect();
-    const connection = await SallaDatabase.connect();
-    const stores = await connection.models.OauthTokens.findAll({
-      where: { user_id: req.user.id }
-    });
-    userDetails.stores = stores;
 
-    if (stores.length > 0) {
-      try {
+  if (req.user) {
+    try {
+      await SallaDatabase.connect();
+      const connection = await SallaDatabase.connect();
+      const stores = await connection.models.OauthTokens.findAll({
+        where: { user_id: req.user.id }
+      });
+      userDetails.stores = stores;
+
+      if (stores.length > 0) {
         const merchantId = req.query.merchant_id || stores[0].merchant;
         const accessToken = await getValidAccessToken(req.user.email, merchantId);
         const userFromAPI = await SallaAPI.getResourceOwner(accessToken);
         const resourceData = typeof userFromAPI.toArray === 'function' ? userFromAPI.toArray() : userFromAPI;
 
-        userDetails = {
-          ...userDetails,
-          ...resourceData,
-          name: resourceData.name || (req.user ? req.user.username : ''),
-          merchant: resourceData.merchant || resourceData.store || {},
-          selected_merchant: merchantId
-        };
-      } catch (e) {
-        console.error("Error fetching user data from Salla:", e);
+        userDetails.name = resourceData.name || userDetails.name;
+        userDetails.merchant = resourceData.merchant || resourceData.store || userDetails.merchant;
+        userDetails.selected_merchant = merchantId;
       }
+    } catch (e) {
+      console.error("Error in root route:", e);
     }
   }
+
   res.render("index.html", userDetails);
 });
 
@@ -337,10 +338,16 @@ app.get("/orders", ensureAuthenticated, async function (req, res) {
   try {
     const connection = await SallaDatabase.connect();
     const stores = await connection.models.OauthTokens.findAll({ where: { user_id: req.user.id } });
-    const merchantId = req.query.merchant_id || (stores.length > 0 ? stores[0].merchant : null);
+    if (stores.length === 0) {
+      return res.render("orders.html", {
+        orders: [],
+        isLogin: req.user,
+        stores: [],
+        error: "No stores found. Please re-install the app or login again to sync your data."
+      });
+    }
 
-    if (!merchantId) throw new Error("No stores connected.");
-
+    const merchantId = req.query.merchant_id || stores[0].merchant;
     const accessToken = await getValidAccessToken(req.user.email, merchantId);
     res.render("orders.html", {
       orders: await SallaAPI.getAllOrders(accessToken),
@@ -349,7 +356,8 @@ app.get("/orders", ensureAuthenticated, async function (req, res) {
       selected_merchant: merchantId
     });
   } catch (e) {
-    res.send("Error fetching orders: " + e.message);
+    console.error("Orders Error:", e);
+    res.send("Error fetching orders: " + e.message + ". Try logging out and in again.");
   }
 });
 
@@ -360,10 +368,16 @@ app.get("/customers", ensureAuthenticated, async function (req, res) {
   try {
     const connection = await SallaDatabase.connect();
     const stores = await connection.models.OauthTokens.findAll({ where: { user_id: req.user.id } });
-    const merchantId = req.query.merchant_id || (stores.length > 0 ? stores[0].merchant : null);
+    if (stores.length === 0) {
+      return res.render("customers.html", {
+        customers: [],
+        isLogin: req.user,
+        stores: [],
+        error: "No stores found. Please re-install the app or login again to sync your data."
+      });
+    }
 
-    if (!merchantId) throw new Error("No stores connected.");
-
+    const merchantId = req.query.merchant_id || stores[0].merchant;
     const accessToken = await getValidAccessToken(req.user.email, merchantId);
     res.render("customers.html", {
       customers: await SallaAPI.getAllCustomers(accessToken),
@@ -372,7 +386,8 @@ app.get("/customers", ensureAuthenticated, async function (req, res) {
       selected_merchant: merchantId
     });
   } catch (e) {
-    res.send("Error fetching customers: " + e.message);
+    console.error("Customers Error:", e);
+    res.send("Error fetching customers: " + e.message + ". Try logging out and in again.");
   }
 });
 
