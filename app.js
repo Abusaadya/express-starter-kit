@@ -199,19 +199,20 @@ async function startServer() {
       })
     );
 
+    app.use(passport.initialize());
+    app.use(passport.session());
+
     // Debugging middleware to trace session issues
     app.use((req, res, next) => {
       if (req.path !== '/favicon.ico') {
         const hasSession = !!req.session;
         const hasUser = !!req.user;
         const cookieHeader = req.headers.cookie || 'None';
-        console.log(`[Session Debug] ${req.method} ${req.path} | Auth: ${req.isAuthenticated()} | UserID: ${hasUser ? req.user.id : 'None'} | CookieFound: ${cookieHeader.includes('salla_session')}`);
+        const isAuth = typeof req.isAuthenticated === 'function' ? req.isAuthenticated() : false;
+        console.log(`[Session Debug] ${req.method} ${req.path} | Auth: ${isAuth} | UserID: ${hasUser ? req.user.id : 'None'} | CookieFound: ${cookieHeader.includes('salla_session')}`);
       }
       next();
     });
-
-    app.use(passport.initialize());
-    app.use(passport.session());
 
     // serve static files from public folder
     app.use(express.static(__dirname + "/public"));
