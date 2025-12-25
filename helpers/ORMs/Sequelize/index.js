@@ -45,22 +45,38 @@ module.exports = {
       PasswordResets,
       User,
       StoreTelegram,
-      // Add more models here...
-      // require('./models/item'),
     ];
 
-    // We define all models according to their files.
+    console.log("🛠️ Initializing models...");
+    // 1. First, define all models
     for (let i = 0; i < modelDefiners.length; i++) {
       modelDefiners[i] = modelDefiners[i](sequelize, DataTypes);
-      modelDefiners[i].associate(sequelize.models);
     }
 
-    // We execute any associates  after the models are defined .
+    console.log("🔗 Setting up associations...");
+    // 2. Then, call associate on all models
+    Object.keys(sequelize.models).forEach((modelName) => {
+      if (sequelize.models[modelName].associate) {
+        sequelize.models[modelName].associate(sequelize.models);
+      }
+    });
+
+    // Debug environment variables in logs (safe keys only)
+    console.log("📋 DB Config Check:", {
+      server: process.env.DATABASE_SERVER || "N/A",
+      mysql_host: process.env.MYSQLHOST || "N/A",
+      port: process.env.DATABASE_PORT || process.env.MYSQLPORT || "3306",
+      user: process.env.DATABASE_USERNAME || process.env.MYSQLUSER || "N/A",
+      db: process.env.DATABASE_NAME || process.env.MYSQLDATABASE || "N/A"
+    });
 
     try {
+      console.log("🔄 Syncing database...");
       await sequelize.sync({ alter: true });
+      console.log("✅ Database synced successfully.");
     } catch (err) {
-      console.log("Error in creating and connecting database", err);
+      console.log("❌ Error in creating and connecting database", err);
+      throw err; // Rethrow to stop server if DB fails
     }
     return sequelize;
   },
