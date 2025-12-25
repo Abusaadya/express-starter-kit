@@ -422,9 +422,22 @@ app.get("/logout", function (req, res) {
   });
 });
 
-app.listen(port, () => {
-  console.log(`🚀 Server is running on ${port}`);
-});
+// Initialize Database and Start Server
+async function startServer() {
+  try {
+    console.log("🚀 Initializing system...");
+    await SallaDatabase.connect();
+
+    app.listen(port, () => {
+      console.log(`🚀 Server is running on ${port}`);
+    });
+  } catch (error) {
+    console.error("❌ Failed to start server due to database connection error:", error);
+    process.exit(1);
+  }
+}
+
+startServer();
 
 
 // Simple route middleware to ensure user is authenticated.
