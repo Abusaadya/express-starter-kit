@@ -242,9 +242,15 @@ app.get("/", async function (req, res) {
         const merchantId = req.query.merchant_id || stores[0].merchant;
         const accessToken = await getValidAccessToken(req.user.email, merchantId);
         const userFromAPI = await SallaAPI.getResourceOwner(accessToken);
+        const resourceData = typeof userFromAPI.toArray === 'function' ? userFromAPI.toArray() : userFromAPI;
 
-        // Merge user details
-        userDetails = { ...userDetails, ...userFromAPI, selected_merchant: merchantId };
+        userDetails = {
+          ...userDetails,
+          ...resourceData,
+          name: resourceData.name || (req.user ? req.user.username : ''),
+          merchant: resourceData.merchant || resourceData.store || {},
+          selected_merchant: merchantId
+        };
       } catch (e) {
         console.error("Error fetching user data from Salla:", e);
       }
