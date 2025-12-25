@@ -12,6 +12,13 @@ module.exports = {
     // But for this example, we will just use a local SQLite database.
     // const sequelize = new Sequelize(process.env.DB_CONNECTION_URL);
     const isSqlite = process.env.DATABASE_STORAGE ? true : false;
+
+    if (isSqlite) {
+      console.log(`📡 Connecting to SQLite database at: ${process.env.DATABASE_STORAGE}`);
+    } else {
+      console.log(`🛢️  Connecting to MySQL database at: ${process.env.DATABASE_SERVER || process.env.MYSQLHOST}:${process.env.DATABASE_PORT || process.env.MYSQLPORT || 3306}`);
+    }
+
     const sequelize = isSqlite
       ? new Sequelize({
         dialect: "sqlite",
