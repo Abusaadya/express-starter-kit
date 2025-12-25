@@ -19,12 +19,18 @@ module.exports = {
         logging: true,
       })
       : new Sequelize({
-        host: process.env.DATABASE_SERVER,
-        username: process.env.DATABASE_USERNAME,
-        password: process.env.DATABASE_PASSWORD,
-        database: process.env.DATABASE_NAME,
+        host: process.env.DATABASE_SERVER || process.env.MYSQLHOST,
+        port: process.env.DATABASE_PORT || process.env.MYSQLPORT || 3306,
+        username: process.env.DATABASE_USERNAME || process.env.MYSQLUSER,
+        password: process.env.DATABASE_PASSWORD || process.env.MYSQLPASSWORD,
+        database: process.env.DATABASE_NAME || process.env.MYSQLDATABASE,
         dialect: "mysql",
         logging: true,
+        dialectOptions: {
+          ssl: {
+            rejectUnauthorized: false
+          }
+        }
       });
 
     const modelDefiners = [

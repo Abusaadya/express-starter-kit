@@ -1,17 +1,30 @@
 {% extends 'layout.html' %} {% block content %}
 
-<div>
-  <div>Customers:</div>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+  <h3 style="margin: 0;">Customers</h3>
 
-  {% for customer in customers %}
-  <div>
-    Name :
-    <span style="font-weight: bold"
-      >{{customer.first_name}} {{customer.last_name}}</span
-    >
+  {% if stores.length > 1 %}
+  <div style="background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #ddd; color: #333;">
+    <label style="font-weight: bold; margin-right: 10px;">Switch Store:</label>
+    <select onchange="window.location.href='/customers?merchant_id=' + this.value"
+      style="padding: 5px; border-radius: 4px;">
+      {% for store in stores %}
+      <option value="{{store.merchant}}" {% if store.merchant==selected_merchant %}selected{% endif %}>
+        {{store.store_name}}
+      </option>
+      {% endfor %}
+    </select>
   </div>
-  <div>Mobile : <span style="font-weight: bold">{{customer.mobile}}</span></div>
-  <div>Email : <span style="font-weight: bold">{{customer.email}}</span></div>
-  {% endfor %}
+  {% endif %}
+</div>
+
+{% for customer in customers %}
+<div>
+  Name :
+  <span style="font-weight: bold">{{customer.first_name}} {{customer.last_name}}</span>
+</div>
+<div>Mobile : <span style="font-weight: bold">{{customer.mobile}}</span></div>
+<div>Email : <span style="font-weight: bold">{{customer.email}}</span></div>
+{% endfor %}
 </div>
 {% endblock %}

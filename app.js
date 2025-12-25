@@ -80,17 +80,24 @@ SallaAPI.onAuth(async (accessToken, refreshToken, expires_in, data) => {
  * Professional helper to ensure we always have a valid access token.
  * It checks the database, validates expiry, and refreshes if necessary.
  */
-async function getValidAccessToken(userEmail) {
+async function getValidAccessToken(userEmail, merchantId = null) {
   try {
     await SallaDatabase.connect();
     const user = await SallaDatabase.retrieveUser({ email: userEmail }, true);
 
-    // Check if user and tokens exist (using Sequelize plural name 'OauthTokens')
     if (!user || !user.OauthTokens || user.OauthTokens.length === 0) {
       throw new Error("No tokens found for user in database");
     }
 
-    const oauthData = user.OauthTokens[0];
+    // Find the specific token for the merchant or default to the first one
+    let oauthData = user.OauthTokens[0];
+    if (merchantId) {
+      const specificToken = user.OauthTokens.find(t => t.merchant == merchantId);
+      if (specificToken) {
+        oauthData = specificToken;
+      }
+    }
+
     const { access_token, refresh_token, expires_in, updatedAt } = oauthData;
 
     // Calculate if the token is expired (giving 5 mins buffer)
@@ -102,7 +109,7 @@ async function getValidAccessToken(userEmail) {
       return access_token;
     }
 
-    console.log("Access Token expired, requesting refresh...");
+    console.log(`Access Token for merchant ${oauthData.merchant} expired, requesting refresh...`);
     // Token is expired, refresh it using the Salla SDK
     const newToken = await SallaAPI.requestNewAccessToken(refresh_token);
 
@@ -219,18 +226,25 @@ app.get(
 app.get("/", async function (req, res) {
   let userDetails = {
     user: req.user,
-    isLogin: req.user
+    isLogin: req.user,
+    stores: []
   }
   if (req.user) {
-    const userFromDB = await SallaDatabase.retrieveUser({ email: req.user.email }, true);
+    await SallaDatabase.connect();
+    const connection = await SallaDatabase.connect();
+    const stores = await connection.models.OauthTokens.findAll({
+      where: { user_id: req.user.id }
+    });
+    userDetails.stores = stores;
 
-    if (userFromDB && userFromDB.OauthTokens && userFromDB.OauthTokens.length > 0) {
+    if (stores.length > 0) {
       try {
-        const accessToken = await getValidAccessToken(req.user.email);
+        const merchantId = req.query.merchant_id || stores[0].merchant;
+        const accessToken = await getValidAccessToken(req.user.email, merchantId);
         const userFromAPI = await SallaAPI.getResourceOwner(accessToken);
 
-        // Merge user details with additional information from the API
-        userDetails = { ...userDetails, ...userFromAPI };
+        // Merge user details
+        userDetails = { ...userDetails, ...userFromAPI, selected_merchant: merchantId };
       } catch (e) {
         console.error("Error fetching user data from Salla:", e);
       }
@@ -315,10 +329,18 @@ app.get("/refreshToken", ensureAuthenticated, function (req, res) {
 
 app.get("/orders", ensureAuthenticated, async function (req, res) {
   try {
-    const accessToken = await getValidAccessToken(req.user.email);
+    const connection = await SallaDatabase.connect();
+    const stores = await connection.models.OauthTokens.findAll({ where: { user_id: req.user.id } });
+    const merchantId = req.query.merchant_id || (stores.length > 0 ? stores[0].merchant : null);
+
+    if (!merchantId) throw new Error("No stores connected.");
+
+    const accessToken = await getValidAccessToken(req.user.email, merchantId);
     res.render("orders.html", {
       orders: await SallaAPI.getAllOrders(accessToken),
       isLogin: req.user,
+      stores: stores,
+      selected_merchant: merchantId
     });
   } catch (e) {
     res.send("Error fetching orders: " + e.message);
@@ -330,10 +352,18 @@ app.get("/orders", ensureAuthenticated, async function (req, res) {
 
 app.get("/customers", ensureAuthenticated, async function (req, res) {
   try {
-    const accessToken = await getValidAccessToken(req.user.email);
+    const connection = await SallaDatabase.connect();
+    const stores = await connection.models.OauthTokens.findAll({ where: { user_id: req.user.id } });
+    const merchantId = req.query.merchant_id || (stores.length > 0 ? stores[0].merchant : null);
+
+    if (!merchantId) throw new Error("No stores connected.");
+
+    const accessToken = await getValidAccessToken(req.user.email, merchantId);
     res.render("customers.html", {
       customers: await SallaAPI.getAllCustomers(accessToken),
       isLogin: req.user,
+      stores: stores,
+      selected_merchant: merchantId
     });
   } catch (e) {
     res.send("Error fetching customers: " + e.message);

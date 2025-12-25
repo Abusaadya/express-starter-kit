@@ -2,15 +2,44 @@
 {% block content %} {% if not isLogin %}
 
 {% else %}
-<h2> Welcome , <span style="font-weight: bold">{{ user.name }}</span>.</h2>
-<p> Email : <span style="font-weight: bold">{{ user.email }}</span></p>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+  <h2> Welcome , <span style="font-weight: bold">{{ name }}</span>.</h2>
 
-{% for key, value in user.merchant %}
-<p>{{ key }}: <span style="font-weight: bold">{{ value }}</span></p>
-{% endfor %}
+  {% if stores.length > 1 %}
+  <div style="background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #ddd; color: #333;">
+    <label style="font-weight: bold; margin-right: 10px;">Switch Store:</label>
+    <select onchange="window.location.href='/?merchant_id=' + this.value" style="padding: 5px; border-radius: 4px;">
+      {% for store in stores %}
+      <option value="{{store.merchant}}" {% if store.merchant==selected_merchant %}selected{% endif %}>
+        {{store.store_name}}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+</div>
 
-<p>
-  <div>Store Avatar:</div>
-  <img src="{{userDetails.merchant.avatar}}" width="100" />
-</p>
+<div
+  style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 8px; display: flex; align-items: center; gap: 20px;">
+  <img src="{{merchant.avatar or 'https://salla.sa/favicon.ico'}}" width="80" height="80"
+    style="border-radius: 50%; border: 2px solid #fff;" />
+  <div>
+    <h3 style="margin: 0;">{{ merchant.name }}</h3>
+    <p style="margin: 5px 0 0 0; opacity: 0.8;">Email: <b>{{ merchant.email }}</b></p>
+    <p style="margin: 5px 0 0 0; opacity: 0.8;">Merchant ID: <b>{{ merchant.id }}</b></p>
+  </div>
+</div>
+
+<div style="margin-top: 30px;">
+  <h4>Store Details (Raw API Data):</h4>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px; opacity: 0.9;">
+    {% for key, value in merchant %}
+    {% if key != 'avatar' %}
+    <div style="background: rgba(0,0,0,0.2); padding: 5px 10px; border-radius: 4px;">
+      <span style="color: #69d5c4; font-weight: bold;">{{ key }}:</span> {{ value }}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
 {% endif %} {% endblock %}
