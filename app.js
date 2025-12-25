@@ -131,18 +131,26 @@ async function getValidAccessToken(userEmail, merchantId = null) {
 
 //   Passport session setup.
 passport.serializeUser(function (user, done) {
-  console.log(`[Passport Debug] Serializing User: ${user ? user.id : 'None'}`);
-  done(null, user.id || user.email);
+  // Use email as the stable identifier because Salla's internal ID 
+  // doesn't match our database's auto-increment ID.
+  const sessionKey = user.email || user.id;
+  console.log(`[Passport Debug] Serializing User by: ${sessionKey}`);
+  done(null, sessionKey);
 });
 
-passport.deserializeUser(async function (id, done) {
+passport.deserializeUser(async function (sessionKey, done) {
   try {
-    console.log(`[Passport Debug] Deserializing ID: ${id}`);
+    console.log(`[Passport Debug] Deserializing Key: ${sessionKey}`);
     await SallaDatabase.connect();
-    const query = typeof id === 'number' ? { id } : { email: id };
+    // Identifier is likely the email, but we handle both for safety
+    const query = (typeof sessionKey === 'string' && sessionKey.includes('@'))
+      ? { email: sessionKey }
+      : { id: sessionKey };
+
     const user = await SallaDatabase.retrieveUser(query, false);
+
     if (!user) {
-      console.warn(`[Passport Debug] User not found for ID: ${id}`);
+      console.warn(`[Passport Debug] User record NOT found for key: ${sessionKey}`);
     }
     done(null, user);
   } catch (err) {
@@ -188,13 +196,14 @@ async function startServer() {
         name: 'salla_session',
         secret: process.env.SESSION_SECRET || "salla dash secret",
         store: sessionStore,
-        resave: true,
-        saveUninitialized: true,
+        resave: false, // Better for SequelizeStore
+        saveUninitialized: false, // Don't create empty sessions
+        proxy: true, // Specific trust for session cookies
         cookie: {
-          secure: true, // MUST be true for SameSite=none
+          secure: true, // Required for SameSite=none
           httpOnly: true,
           sameSite: 'none', // Critical for Salla iframe compatibility
-          maxAge: 7 * 24 * 60 * 60 * 1000
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         }
       })
     );
@@ -205,11 +214,10 @@ async function startServer() {
     // Debugging middleware to trace session issues
     app.use((req, res, next) => {
       if (req.path !== '/favicon.ico') {
-        const hasSession = !!req.session;
         const hasUser = !!req.user;
         const cookieHeader = req.headers.cookie || 'None';
         const isAuth = typeof req.isAuthenticated === 'function' ? req.isAuthenticated() : false;
-        console.log(`[Session Debug] ${req.method} ${req.path} | Auth: ${isAuth} | UserID: ${hasUser ? req.user.id : 'None'} | CookieFound: ${cookieHeader.includes('salla_session')}`);
+        console.log(`[Session Debug] ${req.method} ${req.path} | Auth: ${isAuth} | UserID: ${hasUser ? req.user.id : 'None'} | CookieSent: ${cookieHeader.includes('salla_session')}`);
       }
       next();
     });
