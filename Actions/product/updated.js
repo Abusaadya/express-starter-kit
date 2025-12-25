@@ -50,7 +50,10 @@ module.exports = async (eventBody, userArgs) => {
     // Finding user by merchant ID in OauthTokens
     const oauthToken = await connection.models.OauthTokens.findOne({
       where: { merchant: merchant },
-      include: [connection.models.User]
+      include: [
+        { model: connection.models.User },
+        { model: connection.models.StoreTelegram }
+      ]
     });
 
     if (!oauthToken || !oauthToken.User) {
@@ -59,18 +62,28 @@ module.exports = async (eventBody, userArgs) => {
     }
 
     const user = oauthToken.User;
+    const storeName = oauthToken.store_name || "Salla Store";
     const product = data;
     const quantity = product.quantity;
     const threshold = user.stock_threshold || 5;
 
-    console.log(`Checking stock for product ${product.name}: ${quantity} vs threshold ${threshold}`);
+    console.log(`Checking stock for product ${product.name} in store ${storeName}: ${quantity} vs threshold ${threshold}`);
 
     if (quantity <= threshold) {
       const message = `⚠️ <b>Low Stock Alert</b>\n\nProduct: <b>${product.name}</b>\nCurrent Quantity: <b>${quantity}</b>\nThreshold: <b>${threshold}</b>\n\nPlease restock soon!`;
 
-      // Send Telegram Alert
-      if (user.telegram_chat_id) {
-        await NotificationService.sendTelegramAlert(user.telegram_chat_id, message);
+      // fetch telegram chat IDs for this store
+      const storeTelegrams = oauthToken.StoreTelegrams || [];
+      const chatIds = storeTelegrams.map(t => t.chat_id);
+
+      // Also include the legacy user.telegram_chat_id if present and not already in chatIds
+      if (user.telegram_chat_id && !chatIds.includes(user.telegram_chat_id)) {
+        chatIds.push(user.telegram_chat_id);
+      }
+
+      // Broadcast Telegram Alert
+      if (chatIds.length > 0) {
+        await NotificationService.broadcastToStore(chatIds, message, storeName);
       }
 
       // Send Email Alert

@@ -30,6 +30,26 @@ class NotificationService {
     }
 
     /**
+     * Broadcast alert via Telegram to multiple recipients
+     * @param {Array<string>} chatIds 
+     * @param {string} message 
+     * @param {string} storeName
+     */
+    async broadcastToStore(chatIds, message, storeName = "") {
+        const token = process.env.TELEGRAM_BOT_TOKEN;
+        if (!token || !chatIds || !chatIds.length) {
+            console.warn("Telegram Token or Chat IDs missing. Skipping broadcast.");
+            return;
+        }
+
+        const prefix = storeName ? `🏪 <b>[${storeName}]</b>\n` : "";
+        const fullMessage = prefix + message;
+
+        const promises = chatIds.map(chatId => this.sendTelegramAlert(chatId, fullMessage));
+        await Promise.allSettled(promises);
+    }
+
+    /**
      * Send alert via Telegram
      * @param {string} chatId 
      * @param {string} message 
@@ -54,10 +74,10 @@ class NotificationService {
             });
             const result = await response.json();
             if (!result.ok) {
-                console.error("Telegram API Error:", result.description);
+                console.error(`Telegram API Error (ChatID: ${chatId}):`, result.description);
             }
         } catch (error) {
-            console.error("Error sending Telegram alert:", error);
+            console.error(`Error sending Telegram alert (ChatID: ${chatId}):`, error);
         }
     }
 

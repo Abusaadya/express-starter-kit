@@ -3,6 +3,7 @@ const { Sequelize, DataTypes } = require("sequelize");
 const OauthTokens = require("./models/oauthtokens");
 const PasswordResets = require("./models/passwordresets");
 const User = require("./models/user");
+const StoreTelegram = require("./models/storetelegram");
 
 // We export the sequelize connection instance to be used around our app.
 module.exports = {
@@ -30,6 +31,7 @@ module.exports = {
       OauthTokens,
       PasswordResets,
       User,
+      StoreTelegram,
       // Add more models here...
       // require('./models/item'),
     ];

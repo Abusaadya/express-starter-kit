@@ -1,59 +1,89 @@
 {% extends 'layout.html' %} {% block content %}
 
-<p>
-<div> User's Data:</div>
-<div>
-  <span>Name : <span style="font-weight:bold">{{user.name}}</span></span>
-</div>
-<div>
-  <span>ID : <span style="font-weight:bold">{{user.id}}</span></span>
-</div>
-<div>
-  <span>Email : <span style="font-weight:bold">{{user.email}}</span></span>
-</div>
-<div>
-  <span>Mobile : <span style="font-weight:bold">{{user.mobile}}</span></span>
-</div>
-<div>
-  <span>Store Name : <span style="font-weight:bold">{{user.store.name}}</span></span>
-</div>
-</p>
+<h3>Store Management & Telegram Alerts</h3>
 
-<hr>
-
-<h3>Alert Settings (Low Stock)</h3>
 {% if success %}
-<p style="color: green;">Settings updated successfully!</p>
+<div style="background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 20px;">
+  ✅ Settings updated successfully!
+</div>
 {% endif %}
-<form action="/account" method="POST">
-  <div>
-    <label>Stock Threshold:</label><br>
-    <input type="number" name="stock_threshold" value="{{settings.stock_threshold or 5}}" required>
-  </div>
-  <br>
-  <div>
-    <label>Telegram Alerts:</label><br>
-    {% if settings.telegram_chat_id %}
-    <span style="color: green;">✅ Linked (Chat ID: {{settings.telegram_chat_id}})</span>
-    <p style="margin-top: 5px;"><small>To relink to a different account, use the button below:</small></p>
-    {% endif %}
 
-    {% if settings.telegram_link_token %}
-    <a href="https://t.me/{{telegram_bot_username}}?start={{settings.telegram_link_token}}" target="_blank"
-      style="display: inline-block; padding: 10px 20px; background-color: #0088cc; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
-      Connect with Telegram
-    </a>
-    {% else %}
-    <p style="color: #ff9800;">⚠️ Token generating... Please refresh the page.</p>
-    {% endif %}
+<div style="display: grid; gap: 20px;">
+  {% for store in stores %}
+  <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; color: #333;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+      <div style="display: flex; align-items: center;">
+        <img src="{{store.store_avatar or 'https://salla.sa/favicon.ico'}}" width="40" height="40"
+          style="border-radius: 50%; margin-right: 15px; border: 1px solid #ddd;">
+        <div>
+          <h4 style="margin: 0;">{{store.store_name or 'Connected Store'}}</h4>
+          <small style="color: #666;">Merchant ID: {{store.merchant}}</small>
+        </div>
+      </div>
+      <div style="background: #e9ecef; padding: 5px 12px; border-radius: 15px; font-size: 12px; font-weight: bold;">
+        Connected
+      </div>
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid #ddd; margin: 15px 0;">
+
+    <div style="margin-bottom: 20px;">
+      <h5 style="margin-bottom: 10px;">Linked Telegram Recipients:</h5>
+      {% if store.StoreTelegrams and store.StoreTelegrams.length > 0 %}
+      <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+        {% for tg in store.StoreTelegrams %}
+        <div
+          style="background: #fff; border: 1px solid #0088cc; padding: 8px 12px; border-radius: 20px; display: flex; align-items: center; gap: 10px;">
+          <span style="color: #0088cc; font-weight: bold;">👤 {{tg.label}}</span>
+          <form action="/account/telegram/remove" method="POST" style="display: inline; margin: 0;">
+            <input type="hidden" name="oauth_token_id" value="{{store.id}}">
+            <input type="hidden" name="chat_id" value="{{tg.chat_id}}">
+            <button type="submit"
+              style="background: none; border: none; color: #dc3545; cursor: pointer; padding: 0; font-weight: bold;"
+              title="Remove">✕</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="color: #666; font-style: italic;">No Telegram accounts linked to this store yet.</p>
+      {% endif %}
+    </div>
+
+    <div>
+      <a href="https://t.me/{{telegram_bot_username}}?start={{store.telegram_link_token}}" target="_blank"
+        style="display: inline-block; padding: 10px 20px; background-color: #0088cc; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 14px;">
+        ➕ Link New Telegram Account
+      </a>
+      <p style="margin-top: 8px; font-size: 12px; color: #666;">
+        Click this button or send the link to whoever should receive alerts for <b>{{store.store_name}}</b>.
+      </p>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<hr style="margin: 30px 0;">
+
+<h3>General Settings</h3>
+<form action="/account" method="POST">
+  <div style="color: #333;">
+    <label style="font-weight: bold;">Global Stock Threshold:</label><br>
+    <input type="number" name="stock_threshold" value="{{settings.stock_threshold or 5}}" required
+      style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100px; margin-top: 5px;">
+    <p style="font-size: 12px; color: #666;">Alert me when product quantity falls below this value.</p>
   </div>
   <br>
-  <div>
-    <label>Alert Email:</label><br>
-    <input type="email" name="alert_email" value="{{settings.alert_email or user.email}}"
-      placeholder="Email for alerts">
+  <div style="color: #333;">
+    <label style="font-weight: bold;">Global Alert Email:</label><br>
+    <input type="email" name="alert_email" value="{{settings.alert_email or user.email}}" placeholder="Email for alerts"
+      style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 300px; margin-top: 5px;">
   </div>
   <br>
-  <button type="submit">Save Settings</button>
+  <button type="submit"
+    style="padding: 10px 25px; background-color: #69d5c4; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+    Save Settings
+  </button>
 </form>
+
 {% endblock %}

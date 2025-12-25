@@ -66,7 +66,9 @@ SallaAPI.onAuth(async (accessToken, refreshToken, expires_in, data) => {
         access_token: accessToken,
         expires_in: expires_in,
         refresh_token: refreshToken,
-        user_id
+        user_id,
+        store_name: data.merchant.name,
+        store_avatar: data.merchant.avatar
       },
     );
   } catch (err) {
@@ -241,28 +243,39 @@ app.get("/", async function (req, res) {
 // get account information and ensure user is authenticated
 
 app.get("/account", ensureAuthenticated, async function (req, res) {
-  const userFromDB = await SallaDatabase.retrieveUser({ email: req.user.email }, false);
+  const connection = await SallaDatabase.connect();
+  const stores = await connection.models.OauthTokens.findAll({
+    where: { user_id: req.user.id },
+    include: [connection.models.StoreTelegram]
+  });
 
-  // Generate a random token for Telegram linking if it doesn't exist
-  if (userFromDB && !userFromDB.telegram_link_token) {
-    const crypto = require("crypto");
-    const token = crypto.randomBytes(16).toString("hex");
-    await userFromDB.update({ telegram_link_token: token });
+  // Ensure each store has a telegram_link_token
+  const crypto = require("crypto");
+  for (const store of stores) {
+    if (!store.telegram_link_token) {
+      const token = crypto.randomBytes(16).toString("hex");
+      await store.update({ telegram_link_token: token });
+    }
   }
 
   // Get Bot Username automatically using the token
   const NotificationService = require("./helpers/NotificationService");
   const botInfo = await NotificationService.getBotInfo();
   const botUsername = botInfo ? botInfo.username : "BotInfoError";
-  console.log(`🤖 Telegram Bot Username: ${botUsername}`);
 
   res.render("account.html", {
     user: req.user,
-    settings: userFromDB,
+    stores: stores,
     isLogin: req.user,
     success: req.query.success === '1',
     telegram_bot_username: botUsername
   });
+});
+
+app.post("/account/telegram/remove", ensureAuthenticated, async function (req, res) {
+  const { oauth_token_id, chat_id } = req.body;
+  await SallaDatabase.removeTelegramFromStore(oauth_token_id, chat_id);
+  res.redirect("/account?success=1");
 });
 
 app.post("/account", ensureAuthenticated, async function (req, res) {
@@ -345,18 +358,21 @@ app.post(["/telegram/webhook", "/telegram/webhook/"], async (req, res) => {
         const linkToken = parts[1];
         await SallaDatabase.connect();
         const connection = await SallaDatabase.connect();
-        const user = await connection.models.User.findOne({
+
+        // Find store by its linking token
+        const store = await connection.models.OauthTokens.findOne({
           where: { telegram_link_token: linkToken }
         });
 
-        if (user) {
-          await user.update({ telegram_chat_id: chatId });
-          await NotificationService.sendTelegramAlert(chatId, "✅ <b>تم ربط حسابك بنجاح!</b>\nمن الآن فصاعداً، ستصلك تنبيهات نقص الكمية هنا.");
+        if (store) {
+          // Add this recipient to the store
+          await SallaDatabase.addTelegramToStore(store.id, chatId, message.from.first_name || "Recipient");
+          await NotificationService.sendTelegramAlert(chatId, `✅ <b>تم ربط حسابك بمتجر [${store.store_name}] بنجاح!</b>\nمن الآن فصاعداً، ستصلك تنبيهات هذا المتجر هنا.`);
         } else {
           await NotificationService.sendTelegramAlert(chatId, "❌ <b>عذراً، هذا الرابط غير صالح أو منتهي الصلاحية.</b>\nيرجى المحاولة مرة أخرى من صفحة الحساب.");
         }
       } else {
-        await NotificationService.sendTelegramAlert(chatId, "👋 <b>أهلاً بك في بوت تنبيهات سلة!</b>\n\nلربط حسابك، يرجى الضغط على زر 'Connect with Telegram' من داخل التطبيق في صفحة الحساب (Account).");
+        await NotificationService.sendTelegramAlert(chatId, "👋 <b>أهلاً بك في بوت تنبيهات سلة!</b>\n\nلربط حسابك بمتجرك، يرجى الضغط على زر 'Connect with Telegram' الخاص بالمتجر من داخل التطبيق.");
       }
     }
     res.sendStatus(200);

@@ -9,6 +9,9 @@ module.exports = (sequelize, DataTypes) => {
      */
     static associate(models) {
       // define association here
+      const { OauthTokens, StoreTelegram, User } = models;
+      OauthTokens.hasMany(StoreTelegram, { foreignKey: 'oauth_token_id' });
+      OauthTokens.belongsTo(User, { foreignKey: 'user_id' });
     }
   }
   OauthTokens.init(
@@ -18,6 +21,12 @@ module.exports = (sequelize, DataTypes) => {
       access_token: DataTypes.STRING,
       expires_in: DataTypes.INTEGER,
       refresh_token: DataTypes.STRING,
+      store_name: DataTypes.STRING,
+      store_avatar: DataTypes.STRING,
+      telegram_link_token: {
+        type: DataTypes.STRING,
+        unique: true
+      },
     },
     {
       sequelize,

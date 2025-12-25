@@ -97,12 +97,21 @@ class SallaDatabase {
         // Find existing token for this user and merchant or create a new one
         const [token, created] = await this.connection.models.OauthTokens.findOrCreate({
           where: { user_id, merchant: data.merchant },
-          defaults: { ...data, user_id }
+          defaults: {
+            ...data,
+            user_id,
+            store_name: data.store_name,
+            store_avatar: data.store_avatar
+          }
         });
 
         if (!created) {
           // If it exists, update it with new tokens and expiry
-          await token.update(data);
+          await token.update({
+            ...data,
+            store_name: data.store_name,
+            store_avatar: data.store_avatar
+          });
         }
         return token;
       }
@@ -127,6 +136,35 @@ class SallaDatabase {
         });
       } catch (err) {
       }
+    }
+  }
+
+  async addTelegramToStore(oauthTokenId, chatId, label) {
+    await this.connect();
+    if (this.DATABASE_ORM == "Sequelize") {
+      return await this.connection.models.StoreTelegram.create({
+        oauth_token_id: oauthTokenId,
+        chat_id: chatId,
+        label: label
+      });
+    }
+  }
+
+  async removeTelegramFromStore(oauthTokenId, chatId) {
+    await this.connect();
+    if (this.DATABASE_ORM == "Sequelize") {
+      return await this.connection.models.StoreTelegram.destroy({
+        where: { oauth_token_id: oauthTokenId, chat_id: chatId }
+      });
+    }
+  }
+
+  async getTelegramsForStore(oauthTokenId) {
+    await this.connect();
+    if (this.DATABASE_ORM == "Sequelize") {
+      return await this.connection.models.StoreTelegram.findAll({
+        where: { oauth_token_id: oauthTokenId }
+      });
     }
   }
 }
