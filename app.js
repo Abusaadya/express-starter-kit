@@ -283,7 +283,8 @@ async function startServer() {
         try {
           const connection = await SallaDatabase.connect();
           const stores = await connection.models.OauthTokens.findAll({
-            where: { user_id: req.user.id }
+            where: { user_id: req.user.id },
+            include: [connection.models.StoreTelegram]
           });
           userDetails.stores = stores;
 

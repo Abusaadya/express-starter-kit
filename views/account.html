@@ -1,79 +1,80 @@
 {% extends 'layout.html' %}
 {% block content %}
 
-<h3>Store Management & Telegram Alerts</h3>
+<h3 style="margin-bottom: 25px; border-right: 4px solid #69d5c4; padding-right: 15px;">إدارة المتاجر وتنبيهات تليجرام ⚙️
+</h3>
 
 {% if success %}
 <div
-  style="background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #c3e6cb;">
-  ✅ Settings updated successfully!
+  style="background-color: rgba(40, 167, 69, 0.1); color: #28a745; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid rgba(40, 167, 69, 0.2); font-weight: bold;">
+  ✅ تم تحديث الإعدادات بنجاح!
 </div>
 {% endif %}
 
 {% if stores.length == 0 %}
 <div
-  style="background: rgba(255,255,255,0.05); border: 2px dashed rgba(255,255,255,0.2); border-radius: 8px; padding: 40px; text-align: center;">
+  style="background: rgba(255,255,255,0.05); border: 2px dashed rgba(255,255,255,0.2); border-radius: 12px; padding: 40px; text-align: center;">
   <div style="font-size: 40px; margin-bottom: 20px;">🔌</div>
-  <h4 style="margin-bottom: 10px;">No Stores Found in the New Database</h4>
-  <p style="color: #ccc; margin-bottom: 25px;">Since the database was recently migrated to MySQL, you need to sync your
-    store connections once more.</p>
+  <h4 style="margin-bottom: 10px;">لا توجد متاجر مرتبطة في قاعدة البيانات</h4>
+  <p style="color: #ccc; margin-bottom: 25px; font-size: 14px;">بسبب التحديث الأخير للنظام، يرجى إعادة ربط متاجرك مرة
+    واحدة فقط لمزامنة البيانات.</p>
   <a href="/login"
     style="display: inline-block; background-color: #69d5c4; color: white; padding: 12px 25px; border-radius: 30px; text-decoration: none; font-weight: bold;">
-    🔄 Sync My Stores Now
+    🔄 ربط المتاجر الآن
   </a>
 </div>
 
 {% else %}
 <div style="display: grid; gap: 20px;">
   {% for store in stores %}
-  <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; color: #333;">
+  <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 12px; padding: 20px; color: #333;">
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
       <div style="display: flex; align-items: center;">
         <img src="{{store.store_avatar or 'https://salla.sa/favicon.ico'}}" width="40" height="40"
-          style="border-radius: 50%; margin-right: 15px; border: 1px solid #ddd;">
+          style="border-radius: 8px; margin-left: 15px; border: 1px solid #ddd;">
         <div>
-          <h4 style="margin: 0;">{{store.store_name or 'Connected Store'}}</h4>
-          <small style="color: #666;">Merchant ID: {{store.merchant}}</small>
+          <h4 style="margin: 0;">{{store.store_name or 'متجر متصل'}}</h4>
+          <small style="color: #666;">معرف التاجر: {{store.merchant}}</small>
         </div>
       </div>
       <div
-        style="background: #69d5c4; color: #fff; padding: 5px 12px; border-radius: 15px; font-size: 11px; font-weight: bold;">
-        Connected
+        style="background: #e6f9f6; color: #1bc5bd; padding: 5px 12px; border-radius: 15px; font-size: 11px; font-weight: bold;">
+        متصل
       </div>
     </div>
 
-    <hr style="border: 0; border-top: 1px solid #ddd; margin: 15px 0;">
+    <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
 
     <div style="margin-bottom: 20px;">
-      <h5 style="margin-bottom: 10px; color: #555;">Linked Telegram Recipients:</h5>
+      <h5 style="margin-bottom: 10px; color: #555; font-size: 14px;">المسؤولون عن استقبال التنبيهات (تليجرام):</h5>
       {% if store.StoreTelegrams and store.StoreTelegrams.length > 0 %}
       <div style="display: flex; flex-wrap: wrap; gap: 10px;">
         {% for tg in store.StoreTelegrams %}
         <div
           style="background: #fff; border: 1px solid #0088cc; padding: 8px 12px; border-radius: 20px; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-          <span style="color: #0088cc; font-weight: bold; font-size: 13px;">👤 {{tg.label}}</span>
+          <span style="color: #0088cc; font-weight: bold; font-size: 13px;">👤 {{tg.name}}</span>
           <form action="/account/telegram/remove" method="POST" style="display: inline; margin: 0;">
             <input type="hidden" name="oauth_token_id" value="{{store.id}}">
             <input type="hidden" name="chat_id" value="{{tg.chat_id}}">
             <button type="submit"
               style="background: none; border: none; color: #dc3545; cursor: pointer; padding: 0; font-weight: bold; font-size: 16px;"
-              title="Remove">✕</button>
+              title="إزالة">✕</button>
           </form>
         </div>
         {% endfor %}
       </div>
       {% else %}
-      <p style="color: #999; font-style: italic; font-size: 13px;">No Telegram accounts linked to this store yet.</p>
+      <p style="color: #999; font-style: italic; font-size: 13px;">لا توجد حسابات تليجرام مرتبطة بهذا المتجر حالياً.</p>
       {% endif %}
     </div>
 
     <div>
       <a href="https://t.me/{{telegram_bot_username}}?start={{store.telegram_link_token}}" target="_blank"
-        style="display: inline-block; padding: 10px 20px; background-color: #0088cc; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 10px rgba(0, 136, 204, 0.2);">
-        ➕ Link New Telegram Account
+        style="display: inline-block; padding: 10px 20px; background-color: #0088cc; color: white; text-decoration: none; border-radius: 30px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 10px rgba(0, 136, 204, 0.2);">
+        ➕ ربط حساب تليجرام جديد
       </a>
-      <p style="margin-top: 8px; font-size: 12px; color: #888;">
-        Click this button to link your Telegram account for <b>{{store.store_name}}</b>.
+      <p style="margin-top: 10px; font-size: 12px; color: #888;">
+        اضغط على الزر أعلاه لربط حساب تليجرام جديد لاستقبال التنبيهات لمتجر <b>{{store.store_name}}</b>.
       </p>
     </div>
   </div>
@@ -83,24 +84,28 @@
 
 <hr style="margin: 40px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.1);">
 
-<h3 style="margin-bottom: 20px;">General Settings</h3>
-<form action="/account" method="POST" style="background: rgba(255,255,255,0.05); padding: 25px; border-radius: 8px;">
+<h3 style="margin-bottom: 20px; border-right: 4px solid #69d5c4; padding-right: 15px;">إعدادات عامة 🛠️</h3>
+<form action="/account" method="POST"
+  style="background: rgba(255,255,255,0.05); padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
   <div style="margin-bottom: 20px;">
-    <label style="font-weight: bold; display: block; margin-bottom: 10px;">Global Stock Threshold:</label>
+    <label style="font-weight: bold; display: block; margin-bottom: 10px; color: #69d5c4;">حد المخزون الأدنى
+      (للتحذير):</label>
     <input type="number" name="stock_threshold" value="{{settings.stock_threshold or 5}}" required
-      style="padding: 10px; border: 1px solid #ddd; border-radius: 4px; width: 120px; outline: none;">
-    <p style="font-size: 12px; color: #aaa; margin-top: 5px;">Alert me when product quantity falls below this value.</p>
+      style="padding: 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; width: 120px; outline: none; background: rgba(0,0,0,0.2); color: #fff;">
+    <p style="font-size: 12px; color: #aaa; margin-top: 8px;">سيتم إرسال تنبيه عندما تصل كمية أي منتج إلى هذا الحد أو
+      أقل.</p>
   </div>
 
   <div style="margin-bottom: 25px;">
-    <label style="font-weight: bold; display: block; margin-bottom: 10px;">Global Alert Email:</label>
-    <input type="email" name="alert_email" value="{{settings.alert_email or user.email}}" placeholder="Email for alerts"
-      style="padding: 10px; border: 1px solid #ddd; border-radius: 4px; width: 100%; max-width: 400px; outline: none;">
+    <label style="font-weight: bold; display: block; margin-bottom: 10px; color: #69d5c4;">البريد الإلكتروني
+      للتنبيهات:</label>
+    <input type="email" name="alert_email" value="{{settings.alert_email or user.email}}" placeholder="بريد التنبيهات"
+      style="padding: 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; width: 100%; max-width: 400px; outline: none; background: rgba(0,0,0,0.2); color: #fff;">
   </div>
 
   <button type="submit"
-    style="padding: 12px 35px; background-color: #69d5c4; color: white; border: none; border-radius: 30px; cursor: pointer; font-weight: bold; font-size: 16px; box-shadow: 0 4px 15px rgba(105, 213, 196, 0.3);">
-    Save Settings
+    style="padding: 12px 40px; background-color: #69d5c4; color: white; border: none; border-radius: 30px; cursor: pointer; font-weight: bold; font-size: 16px; box-shadow: 0 4px 15px rgba(105, 213, 196, 0.3);">
+    حفظ الإعدادات
   </button>
 </form>
 

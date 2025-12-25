@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title>Salla App Example | ExpressJS </title>
+    <title>تطبيق سلة | لوحة التحكم</title>
 
     <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap" rel="stylesheet">
 
     <!-- Styles -->
     <style>
@@ -50,7 +50,6 @@
         svg,
         video {
             display: block;
-            vertical-align: middle
         }
 
         video {
@@ -399,7 +398,7 @@
 
     <style>
         body {
-            font-family: 'Nunito', sans-serif;
+            font-family: 'Vazirmatn', sans-serif;
         }
     </style>
 </head>
@@ -409,34 +408,31 @@
         class="relative  items-top justify-center min-h-screen bg-gray-100 dark:bg-gray-900 sm:items-center py-4 sm:pt-0">
 
         <div class="max-w-6xl mx-auto sm:px-6 lg:px-8 " style="padding-top:50px">
-            <div class="flex justify-center pt-8 sm:justify-start sm:pt-0 px-5" style="align-items: center;">
-                <img src="https://salla.dev/wp-content/themes/salla-portal/dist/img/salla-logo.svg" class="mr-2"
+            <div class="flex justify-center pt-8 sm:justify-start sm:pt-0 px-5" style="align-items: center; gap: 15px;">
+                <img src="https://salla.dev/wp-content/themes/salla-portal/dist/img/salla-logo.svg"
                     style="width: 120px; height: auto;">
-                <div class="ml-4 text-lg font-semibold" style="background: #69d5c4;
+                <div class="text-lg font-semibold" style="background: #69d5c4;
           color: #fff;
           padding: 8px 16px;
           border-radius: 26px;
-          font-size: 16px;">Awesome App 🤩</div>
+          font-size: 16px;">تطبيق التنبيهات الذكي 🤩</div>
             </div>
             <div class=" sm:block shadow sm:rounded-lg">
                 {% if not isLogin %}
-                <p style="text-align: right;margin-top: -30px;">
-                    <a href="/" class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">Home</a> |
-                    <a href="/login" class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">Install Salla
-                        App</a>
+                <p style="text-align: right; margin-top: -30px;">
+                    <a href="/" class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">الرئيسية</a> |
+                    <a href="/login" class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">تثبيت التطبيق</a>
                 </p>
                 {% else %}
-                <p>
+                <p style="padding: 10px;">
                     <a href="/{% if selected_merchant %}?merchant_id={{selected_merchant}}{% endif %}"
-                        class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">Home</a> |
+                        class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">الرئيسية</a> |
                     <a href="/orders{% if selected_merchant %}?merchant_id={{selected_merchant}}{% endif %}"
-                        class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">Orders</a> |
+                        class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">الطلبات</a> |
                     <a href="/customers{% if selected_merchant %}?merchant_id={{selected_merchant}}{% endif %}"
-                        class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">Customers</a> |
-                    <a href="/account" class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">Account</a> |
-                    <a href="/refreshToken" class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">Refresh
-                        Token</a> |
-                    <a href="/logout" class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">Logout</a>
+                        class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">العملاء</a> |
+                    <a href="/account" class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">الإعدادات</a> |
+                    <a href="/logout" class="ml-4 text-sm text-gray-700 dark:text-gray-500 underline">تسجيل الخروج</a>
                 </p>
                 {% endif %}
                 <div class="max-w-6xl mx-auto " style="

@@ -1,13 +1,14 @@
 {% extends 'layout.html' %} {% block content %}
 
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-  <h3 style="margin: 0;">Customers</h3>
+<h3 style="margin-bottom: 25px; border-right: 4px solid #69d5c4; padding-right: 15px;">العملاء 👥</h3>
 
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
   {% if stores.length > 1 %}
-  <div style="background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #ddd; color: #333;">
-    <label style="font-weight: bold; margin-right: 10px;">Switch Store:</label>
+  <div
+    style="background: #fff; padding: 10px 15px; border-radius: 8px; border: 1px solid #ddd; color: #333; display: flex; align-items: center; gap: 10px;">
+    <label style="font-weight: bold; font-size: 14px;">تبديل المتجر:</label>
     <select onchange="window.location.href='/customers?merchant_id=' + this.value"
-      style="padding: 5px; border-radius: 4px;">
+      style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; cursor: pointer;">
       {% for store in stores %}
       <option value="{{store.merchant}}" {% if store.merchant==selected_merchant %}selected{% endif %}>
         {{store.store_name}}
@@ -18,13 +19,27 @@
   {% endif %}
 </div>
 
-{% for customer in customers %}
-<div>
-  Name :
-  <span style="font-weight: bold">{{customer.first_name}} {{customer.last_name}}</span>
-</div>
-<div>Mobile : <span style="font-weight: bold">{{customer.mobile}}</span></div>
-<div>Email : <span style="font-weight: bold">{{customer.email}}</span></div>
-{% endfor %}
+<div style="display: grid; gap: 15px;">
+  {% for customer in customers %}
+  <div
+    style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+    <div>
+      <span style="opacity: 0.6; font-size: 11px; display: block;">الاسم:</span>
+      <span style="font-weight: bold; color: #69d5c4;">{{customer.first_name}} {{customer.last_name}}</span>
+    </div>
+    <div>
+      <span style="opacity: 0.6; font-size: 11px; display: block;">الجوال:</span>
+      <span style="font-weight: bold;">{{customer.mobile or 'غير متوفر'}}</span>
+    </div>
+    <div style="grid-column: span 2;">
+      <span style="opacity: 0.6; font-size: 11px; display: block;">البريد الإلكتروني:</span>
+      <span style="font-weight: bold; font-size: 13px;">{{customer.email or 'غير متوفر'}}</span>
+    </div>
+  </div>
+  {% else %}
+  <div style="text-align: center; padding: 40px; opacity: 0.5;">
+    <p>لا يوجد عملاء لعرضهم حالياً.</p>
+  </div>
+  {% endfor %}
 </div>
 {% endblock %}

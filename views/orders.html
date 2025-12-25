@@ -1,13 +1,14 @@
 {% extends 'layout.html' %} {% block content %}
 
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-  <h3 style="margin: 0;">Orders</h3>
+<h3 style="margin-bottom: 25px; border-right: 4px solid #69d5c4; padding-right: 15px;">الطلبات 📋</h3>
 
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
   {% if stores.length > 1 %}
-  <div style="background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #ddd; color: #333;">
-    <label style="font-weight: bold; margin-right: 10px;">Switch Store:</label>
+  <div
+    style="background: #fff; padding: 10px 15px; border-radius: 8px; border: 1px solid #ddd; color: #333; display: flex; align-items: center; gap: 10px;">
+    <label style="font-weight: bold; font-size: 14px;">تبديل المتجر:</label>
     <select onchange="window.location.href='/orders?merchant_id=' + this.value"
-      style="padding: 5px; border-radius: 4px;">
+      style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; cursor: pointer;">
       {% for store in stores %}
       <option value="{{store.merchant}}" {% if store.merchant==selected_merchant %}selected{% endif %}>
         {{store.store_name}}
@@ -18,19 +19,49 @@
   {% endif %}
 </div>
 
-{% for order in orders %}
-<div>ID : <span style="font-weight: bold">{{order.reference_id}}</span></div>
-<div>
-  total :
-  <span style="font-weight: bold">{{order.total.amount}} {{order.total.currency}}</span>
-</div>
-<div>
-  status : <span style="font-weight: bold">{{order.status.name}}</span>
-</div>
-<div>Items :</div>
-{% for item in order.items %}
-<div>Name : <span style="font-weight: bold">{{item.name}}</span></div>
-<div>Quantity : <span style="font-weight: bold">{{item.quantity}}</span></div>
-============= {% endfor %} {% endfor %}
+<div style="display: grid; gap: 20px;">
+  {% for order in orders %}
+  <div
+    style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px;">
+    <div
+      style="display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
+      <div>
+        <span style="opacity: 0.6; font-size: 12px; display: block; margin-bottom: 5px;">رقم المرجعي:</span>
+        <span style="font-weight: bold; color: #69d5c4; font-size: 16px;">#{{order.reference_id}}</span>
+      </div>
+      <div style="text-align: left;">
+        <span style="opacity: 0.6; font-size: 12px; display: block; margin-bottom: 5px;">الحالة:</span>
+        <span
+          style="background: rgba(105, 213, 196, 0.1); color: #69d5c4; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold;">{{order.status.name}}</span>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 15px;">
+      <span style="opacity: 0.8; font-size: 14px;">إجمالي الطلب:</span>
+      <span style="font-weight: bold; font-size: 18px; margin-right: 10px;">{{order.total.amount}}
+        {{order.total.currency}}</span>
+    </div>
+
+    <div>
+      <div style="opacity: 0.6; font-size: 12px; margin-bottom: 10px;">المنتجات ({% if order.items
+        %}{{order.items.length}}{% else %}0{% endif %}):</div>
+      <div style="display: grid; gap: 10px;">
+        {% for item in order.items %}
+        <div
+          style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px;">{{item.name}}</span>
+          <span
+            style="background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-size: 11px;">الكمية:
+            {{item.quantity}}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div style="text-align: center; padding: 40px; opacity: 0.5;">
+    <p>لا توجد طلبات لعرضها حالياً.</p>
+  </div>
+  {% endfor %}
 </div>
 {% endblock %}
