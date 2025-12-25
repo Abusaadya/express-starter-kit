@@ -130,19 +130,22 @@ async function getValidAccessToken(userEmail, merchantId = null) {
 }
 
 //   Passport session setup.
-//   To support persistent login sessions, Passport needs to be able to
-//   serialize users into and deserialize users out of the session. Typically,
-//   this will be as simple as storing the user ID when serializing, and finding
-//   the user by ID when deserializing. However, since this example does not
-//   have a database of user records, the complete salla user is serialized
-//   and deserialized.
-
 passport.serializeUser(function (user, done) {
-  done(null, user);
+  // We only store the database Primary Key (id) or the unique email in the session
+  // This ensures the session remains valid even if we restart the server
+  done(null, user.id || user.email);
 });
 
-passport.deserializeUser(function (obj, done) {
-  done(null, obj);
+passport.deserializeUser(async function (id, done) {
+  try {
+    await SallaDatabase.connect();
+    // Try to find by ID (if it's a number) or email (if it's a string)
+    const query = typeof id === 'number' ? { id } : { email: id };
+    const user = await SallaDatabase.retrieveUser(query, false);
+    done(null, user);
+  } catch (err) {
+    done(err);
+  }
 });
 
 //   Use the Salla Strategy within Passport.
@@ -151,18 +154,42 @@ passport.use(SallaAPI.getPassportStrategy());
 
 var app = express();
 
-// configure Express
+// Trust proxy for Railway (allows secure cookies and IP detection)
+app.set('trust proxy', 1);
+
+// Configure Express
 app.set("views", __dirname + "/views");
 app.set("view engine", "html");
 
-// set the session secret
-// you can store session data in any database (monogdb - mysql - inmemory - etc) for more (https://www.npmjs.com/package/express-session)
+// Persistent Session Storage
+const SequelizeStore = require("connect-session-sequelize")(session.Store);
+const sessionStore = new SequelizeStore({
+  db: SallaDatabase.connection, // This will be populated after the first connect()
+  checkExpirationInterval: 15 * 60 * 1000, // The interval at which to cleanup expired sessions in milliseconds.
+  expiration: 24 * 60 * 60 * 1000  // The maximum age (in milliseconds) of a valid session.
+});
+
 app.use(
-  session({ secret: "keyboard cat", resave: true, saveUninitialized: true })
+  session({
+    secret: "salla dash secret",
+    store: sessionStore,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+  })
 );
 
-// Initialize Passport!  Also use passport.session() middleware, to support
-// persistent login sessions (recommended).
+// Ensure session store table exists
+SallaDatabase.connect().then(connection => {
+  if (connection && SallaDatabase.DATABASE_ORM === "Sequelize") {
+    sessionStore.db = connection;
+    sessionStore.sync();
+  }
+});
+
 app.use(passport.initialize());
 app.use(passport.session());
 
