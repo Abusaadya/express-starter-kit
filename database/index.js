@@ -66,9 +66,21 @@ class SallaDatabase {
         where: { email: data.email },
       });
 
+      const { id: incomingId, ...userData } = data;
+      // Map incoming Salla ID to our new salla_id field if present
+      if (incomingId) userData.salla_id = incomingId;
+
       if (!user) {
-        user = await this.connection.models.User.create(data);
+        console.log(`[DB Debug] Creating new user for: ${data.email}`);
+        user = await this.connection.models.User.create(userData);
+      } else {
+        console.log(`[DB Debug] Found existing user: ${user.id} for: ${data.email}`);
+        // Optionally update existing user with salla_id if it's missing
+        if (incomingId && !user.salla_id) {
+          await user.update({ salla_id: incomingId });
+        }
       }
+      console.log(`[DB Debug] saveUser returning internal ID: ${user.id}`);
       return user.id;
     }
     if (this.DATABASE_ORM == "Mongoose") {

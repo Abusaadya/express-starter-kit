@@ -53,6 +53,7 @@ SallaAPI.onAuth(async (accessToken, refreshToken, expires_in, data) => {
   try {
     await SallaDatabase.connect();
     let user_id = await SallaDatabase.saveUser({
+      id: data.id, // Explicitly pass Salla's ID to be saved as salla_id
       username: data.name,
       email: data.email,
       email_verified_at: getUnixTimestamp(),
@@ -265,10 +266,11 @@ async function startServer() {
     // GET /
     app.get("/", async function (req, res) {
       // Auto-login: If user is not authenticated, redirect to login flow automatically.
-      // This provides a seamless experience inside the Salla dashboard.
       if (typeof req.isAuthenticated === 'function' && !req.isAuthenticated()) {
         return res.redirect("/login");
       }
+
+      console.log(`[Route Debug] Entering Root | User: ${req.user ? req.user.email : 'None'} | InternalID: ${req.user ? req.user.id : 'None'}`);
 
       let userDetails = {
         user: req.user,
@@ -282,11 +284,13 @@ async function startServer() {
       if (req.user) {
         try {
           const connection = await SallaDatabase.connect();
+          console.log(`[Route Debug] Fetching stores for user_id: ${req.user.id}`);
           const stores = await connection.models.OauthTokens.findAll({
             where: { user_id: req.user.id },
             include: [connection.models.StoreTelegram]
           });
           userDetails.stores = stores;
+          console.log(`[Route Debug] Found ${stores.length} stores.`);
 
           if (stores.length > 0) {
             const merchantId = req.query.merchant_id || stores[0].merchant;
