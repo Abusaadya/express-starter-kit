@@ -131,19 +131,22 @@ async function getValidAccessToken(userEmail, merchantId = null) {
 
 //   Passport session setup.
 passport.serializeUser(function (user, done) {
-  // We only store the database Primary Key (id) or the unique email in the session
-  // This ensures the session remains valid even if we restart the server
+  console.log(`[Passport Debug] Serializing User: ${user ? user.id : 'None'}`);
   done(null, user.id || user.email);
 });
 
 passport.deserializeUser(async function (id, done) {
   try {
+    console.log(`[Passport Debug] Deserializing ID: ${id}`);
     await SallaDatabase.connect();
-    // Try to find by ID (if it's a number) or email (if it's a string)
     const query = typeof id === 'number' ? { id } : { email: id };
     const user = await SallaDatabase.retrieveUser(query, false);
+    if (!user) {
+      console.warn(`[Passport Debug] User not found for ID: ${id}`);
+    }
     done(null, user);
   } catch (err) {
+    console.error(`[Passport Debug] Deserialization Error:`, err);
     done(err);
   }
 });
@@ -182,16 +185,30 @@ async function startServer() {
 
     app.use(
       session({
-        secret: "salla dash secret",
+        name: 'salla_session',
+        secret: process.env.SESSION_SECRET || "salla dash secret",
         store: sessionStore,
-        resave: false,
-        saveUninitialized: false,
+        resave: true,
+        saveUninitialized: true,
         cookie: {
-          secure: process.env.NODE_ENV === "production",
-          maxAge: 24 * 60 * 60 * 1000
+          secure: true, // MUST be true for SameSite=none
+          httpOnly: true,
+          sameSite: 'none', // Critical for Salla iframe compatibility
+          maxAge: 7 * 24 * 60 * 60 * 1000
         }
       })
     );
+
+    // Debugging middleware to trace session issues
+    app.use((req, res, next) => {
+      if (req.path !== '/favicon.ico') {
+        const hasSession = !!req.session;
+        const hasUser = !!req.user;
+        const cookieHeader = req.headers.cookie || 'None';
+        console.log(`[Session Debug] ${req.method} ${req.path} | Auth: ${req.isAuthenticated()} | UserID: ${hasUser ? req.user.id : 'None'} | CookieFound: ${cookieHeader.includes('salla_session')}`);
+      }
+      next();
+    });
 
     app.use(passport.initialize());
     app.use(passport.session());
