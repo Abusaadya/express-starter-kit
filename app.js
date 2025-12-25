@@ -264,6 +264,12 @@ async function startServer() {
 
     // GET /
     app.get("/", async function (req, res) {
+      // Auto-login: If user is not authenticated, redirect to login flow automatically.
+      // This provides a seamless experience inside the Salla dashboard.
+      if (typeof req.isAuthenticated === 'function' && !req.isAuthenticated()) {
+        return res.redirect("/login");
+      }
+
       let userDetails = {
         user: req.user,
         isLogin: req.user,
